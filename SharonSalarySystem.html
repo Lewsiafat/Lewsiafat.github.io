@@ -1,0 +1,1295 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>本地薪資單生成系統</title>
+    <!-- 引入必要的庫 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    
+    <style>
+        @media print {
+            body { margin: 0; background: white !important; }
+            .no-print { display: none !important; }
+            .salary-slip { 
+                page-break-inside: avoid;
+                box-shadow: none !important;
+                border: 1px solid #333 !important;
+                margin: 0 !important;
+                width: 100% !important;
+                background: white !important;
+            }
+            .main-content { grid-template-columns: 1fr !important; }
+            .sidebar { display: none !important; }
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Microsoft YaHei', 'Arial', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .main-content {
+            display: grid;
+            grid-template-columns: 350px 1fr;
+            min-height: 800px;
+        }
+        
+        .sidebar {
+            background: #f8f9fa;
+            padding: 30px;
+            border-right: 1px solid #e9ecef;
+        }
+        
+        .content-area {
+            padding: 30px;
+            background: white;
+            overflow-y: auto;
+            max-height: 800px;
+        }
+        
+        .section {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+            border-left: 5px solid #4facfe;
+        }
+        
+        .section-title {
+            font-size: 1.3em;
+            color: #2c3e50;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .upload-area {
+            border: 2px dashed #4facfe;
+            border-radius: 12px;
+            padding: 40px;
+            text-align: center;
+            background: #f8fbff;
+            transition: all 0.3s ease;
+            margin-bottom: 20px;
+            cursor: pointer;
+        }
+        
+        .upload-area:hover {
+            border-color: #2980b9;
+            background: #e3f2fd;
+        }
+        
+        .upload-area.dragover {
+            border-color: #27ae60;
+            background: #e8f5e8;
+        }
+        
+        .upload-icon {
+            font-size: 3em;
+            color: #4facfe;
+            margin-bottom: 15px;
+        }
+        
+        .upload-text {
+            font-size: 1.1em;
+            color: #34495e;
+            margin-bottom: 15px;
+        }
+        
+        .file-input {
+            display: none;
+        }
+        
+        .upload-btn {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 8px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .upload-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(79, 172, 254, 0.4);
+        }
+        
+        .employee-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 8px;
+            margin-bottom: 20px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        
+        .employee-card {
+            background: white;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            padding: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .employee-card:hover {
+            border-color: #4facfe;
+            background: #f8fbff;
+        }
+        
+        .employee-card.selected {
+            border-color: #27ae60;
+            background: #e8f5e8;
+        }
+        
+        .employee-info {
+            flex: 1;
+        }
+        
+        .employee-name {
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 3px;
+        }
+        
+        .employee-position {
+            font-size: 0.9em;
+            color: #6c757d;
+        }
+        
+        .employee-salary {
+            font-size: 0.9em;
+            color: #28a745;
+            font-weight: 600;
+        }
+        
+        .action-buttons {
+            display: grid;
+            gap: 10px;
+        }
+        
+        .btn {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-align: center;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .btn-success {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            color: white;
+        }
+        
+        .btn-info {
+            background: linear-gradient(135deg, #17a2b8 0%, #6f42c1 100%);
+            color: white;
+        }
+        
+        .btn-warning {
+            background: linear-gradient(135deg, #ffc107 0%, #ff8c00 100%);
+            color: white;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.2);
+        }
+        
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .status-indicator {
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            font-weight: 600;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+        
+        .status-success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .status-warning {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+        
+        .status-error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .salary-slip {
+            background: white;
+            border: 1px solid #e0e0e0;
+            font-family: 'Microsoft YaHei', sans-serif;
+            margin: 20px 0;
+            font-size: 14px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            border-radius: 8px;
+            overflow: hidden;
+            page-break-inside: avoid;
+        }
+        
+        .slip-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 25px;
+            border-bottom: 2px solid #007bff;
+            background: #f8f9ff;
+        }
+        
+        .header-left, .header-right {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .calendar-icon {
+            color: #dc3545;
+            font-size: 18px;
+        }
+        
+        .chart-icon {
+            color: #28a745;
+            font-size: 18px;
+        }
+        
+        .header-title, .performance-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: #333;
+        }
+        
+        .slip-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            padding: 25px;
+        }
+        
+        .left-column {
+            border-right: 1px solid #e0e0e0;
+            padding-right: 25px;
+        }
+        
+        .right-column {
+            padding-left: 25px;
+            background: #fafafa;
+            margin-left: -25px;
+            margin-right: -25px;
+            margin-bottom: -25px;
+            padding: 25px;
+        }
+        
+        .basic-info {
+            margin-bottom: 25px;
+        }
+        
+        .info-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+            font-size: 15px;
+        }
+        
+        .label {
+            color: #666;
+            margin-right: 8px;
+            font-weight: 500;
+        }
+        
+        .job-label {
+            margin-left: 60px;
+        }
+        
+        .value {
+            color: #333;
+            font-weight: 600;
+        }
+        
+        .note-row {
+            margin-top: 15px;
+        }
+        
+        .note {
+            color: #888;
+            font-size: 13px;
+        }
+        
+        .salary-section {
+            margin-top: 20px;
+        }
+        
+        .section-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 20px;
+            font-size: 16px;
+            font-weight: 700;
+            color: #333;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #ddd;
+        }
+        
+        .money-icon {
+            color: #ffc107;
+            font-size: 16px;
+        }
+        
+        .salary-list {
+            margin-bottom: 20px;
+        }
+        
+        .salary-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid #f0f0f0;
+            font-size: 13px;
+        }
+        
+        .salary-label {
+            color: #555;
+            font-weight: 500;
+            flex: 0 0 auto;
+        }
+        
+        .salary-calc {
+            color: #888;
+            font-size: 11px;
+            flex: 1;
+            text-align: left;
+            padding-left: 20px;
+        }
+        
+        .salary-amount {
+            text-align: right;
+            font-weight: 600;
+            font-size: 13px;
+            flex: 0 0 auto;
+        }
+        
+        .salary-amount.positive {
+            color: #28a745;
+        }
+        
+        .salary-amount.negative {
+            color: #dc3545;
+        }
+        
+        .total-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 0;
+            border-top: 2px solid #007bff;
+            margin-top: 15px;
+        }
+        
+        .total-label {
+            font-size: 16px;
+            font-weight: 700;
+            color: #333;
+        }
+        
+        .total-amount {
+            font-size: 20px;
+            font-weight: 700;
+            color: #007bff;
+        }
+        
+        .performance-category {
+            background: white;
+            border: 1px solid #e8f5e8;
+            border-left: 4px solid #28a745;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            overflow: hidden;
+        }
+        
+        .category-header {
+            background: #f8fff8;
+            padding: 12px 15px;
+            font-size: 15px;
+            font-weight: 600;
+            color: #155724;
+            border-bottom: 1px solid #e8f5e8;
+        }
+        
+        .performance-details {
+            padding: 12px 15px;
+        }
+        
+        .perf-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 6px 0;
+            border-bottom: 1px solid #f8f9fa;
+            font-size: 13px;
+        }
+        
+        .perf-row:last-child {
+            border-bottom: none;
+        }
+        
+        .perf-row.highlight {
+            background: #f0f8f0;
+            margin: 6px -15px;
+            padding: 8px 15px;
+            font-weight: 600;
+        }
+        
+        .perf-label {
+            color: #555;
+        }
+        
+        .perf-value {
+            color: #333;
+            font-weight: 600;
+        }
+        
+        .perf-row.highlight .perf-value {
+            color: #28a745;
+            font-weight: 700;
+        }
+        
+        .source-section {
+            background: #f8f9fa;
+            border-top: 1px solid #e8f5e8;
+            padding: 12px 15px;
+            margin: 12px -15px -12px -15px;
+        }
+        
+        .source-header {
+            color: #333;
+            font-weight: 600;
+            font-size: 13px;
+            margin-bottom: 8px;
+        }
+        
+        .source-list {
+            color: #555;
+            font-size: 12px;
+            line-height: 1.5;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 50px;
+            color: #6c757d;
+        }
+        
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #4facfe;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .hidden {
+            display: none;
+        }
+        
+        .guide {
+            background: #e3f2fd;
+            border-left: 4px solid #2196f3;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 0 8px 8px 0;
+        }
+        
+        .guide-title {
+            font-size: 1.2em;
+            color: #1976d2;
+            margin-bottom: 15px;
+            font-weight: 600;
+        }
+        
+        .guide-step {
+            margin-bottom: 8px;
+            font-size: 14px;
+            color: #424242;
+        }
+        
+        @media (max-width: 768px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+            
+            .slip-content {
+                grid-template-columns: 1fr;
+            }
+            
+            .left-column {
+                border-right: none;
+                border-bottom: 1px solid #e0e0e0;
+                padding-bottom: 20px;
+                margin-bottom: 20px;
+            }
+            
+            .right-column {
+                padding-left: 0;
+                margin-left: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header no-print">
+            <h1>📊 本地薪資單生成系統</h1>
+            <p>離線運行 • Excel解析 • 批量生成 • 列印薪資單</p>
+        </div>
+        
+        <div class="main-content">
+            <div class="sidebar no-print">
+                <!-- 檔案上傳區 -->
+                <div class="section">
+                    <div class="section-title">📁 上傳Excel檔案</div>
+                    
+                    <div class="upload-area" id="uploadArea" onclick="document.getElementById('fileInput').click()">
+                        <div class="upload-icon">📊</div>
+                        <div class="upload-text">點擊或拖拽Excel檔案</div>
+                        <button class="upload-btn">選擇檔案</button>
+                        <input type="file" id="fileInput" class="file-input" accept=".xlsx,.xls" onchange="handleFileUpload(event)">
+                    </div>
+                    
+                    <div id="fileStatus" class="status-indicator hidden"></div>
+                </div>
+                
+                <!-- 員工列表 -->
+                <div class="section">
+                    <div class="section-title">👥 員工列表 (<span id="employeeCount">0</span>)</div>
+                    <div id="employeeGrid" class="employee-grid">
+                        <div class="loading">
+                            <div>請上傳Excel檔案</div>
+                        </div>
+                    </div>
+                    
+                    <div class="action-buttons">
+                        <button class="btn btn-primary" id="generateSelectedBtn" onclick="generateSelected()" disabled>
+                            生成選中 (<span id="selectedCount">0</span>)
+                        </button>
+                        <button class="btn btn-success" id="generateAllBtn" onclick="generateAll()" disabled>
+                            批量生成全部
+                        </button>
+                        <button class="btn btn-warning" onclick="printAll()">
+                            🖨️ 列印薪資單
+                        </button>
+                        <button class="btn btn-info" onclick="clearAll()">
+                            🗑️ 清空結果
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- 使用說明 -->
+                <div class="guide">
+                    <div class="guide-title">💡 使用說明</div>
+                    <div class="guide-step">1. 右鍵保存此網頁到本機</div>
+                    <div class="guide-step">2. 用瀏覽器打開HTML檔案</div>
+                    <div class="guide-step">3. 上傳Excel薪資檔案</div>
+                    <div class="guide-step">4. 選擇員工生成薪資單</div>
+                    <div class="guide-step">5. Ctrl+P 列印或保存PDF</div>
+                </div>
+            </div>
+            
+            <div class="content-area">
+                <div id="salarySlips">
+                    <div class="loading">
+                        <div>📋 請上傳Excel檔案並選擇員工</div>
+                        <div style="margin-top: 20px; font-size: 14px; color: #888;">
+                            支援Excel格式：.xlsx, .xls<br>
+                            自動識別：薪資總表、提成計算、業績來源
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let excelData = null;
+        let selectedEmployees = new Set();
+        
+        // 拖拽上傳功能
+        const uploadArea = document.getElementById('uploadArea');
+        
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+        
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+        
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFile(files[0]);
+            }
+        });
+        
+        // 處理檔案上傳
+        function handleFileUpload(event) {
+            const file = event.target.files[0];
+            if (file) {
+                handleFile(file);
+            }
+        }
+        
+        async function handleFile(file) {
+            if (!file.name.match(/\.(xlsx|xls)$/)) {
+                showStatus('請上傳Excel檔案(.xlsx或.xls格式)', 'error');
+                return;
+            }
+            
+            showStatus('正在解析Excel檔案...', 'warning');
+            
+            try {
+                const arrayBuffer = await file.arrayBuffer();
+                const workbook = XLSX.read(arrayBuffer, {
+                    cellStyles: true,
+                    cellFormulas: true,
+                    cellDates: true,
+                    cellNF: true,
+                    sheetStubs: true
+                });
+                
+                excelData = parseWorkbook(workbook);
+                
+                showStatus(`成功載入 ${Object.keys(excelData.employees).length} 名員工資料`, 'success');
+                displayEmployees();
+                updateButtonStates();
+                
+            } catch (error) {
+                console.error('解析Excel檔案失敗:', error);
+                showStatus('Excel檔案解析失敗，請檢查檔案格式', 'error');
+            }
+        }
+        
+        // 解析Excel工作簿
+        function parseWorkbook(workbook) {
+            const employees = {};
+            
+            // 解析薪資總表
+            if (workbook.Sheets['薪資總表']) {
+                const salaryData = XLSX.utils.sheet_to_json(workbook.Sheets['薪資總表'], { header: 1 });
+                
+                for (let i = 1; i < salaryData.length; i++) {
+                    const row = salaryData[i];
+                    if (row[0] && row[0] !== '總計') {
+                        const name = row[0];
+                        employees[name] = {
+                            name: name,
+                            position: row[1] || '',
+                            baseSalary: row[2] || 0,
+                            finalSalary: row[22] || 0,
+                            lateMinutes: row[23] || 0,
+                            vacationDays: row[24] || 0,
+                            // 各項提成和扣款
+                            developmentCommission: row[3] || 0,
+                            customerCommission: row[4] || 0,
+                            selfCustomerCommission: row[5] || 0,
+                            adCommission: row[6] || 0,
+                            groupCommission: row[7] || 0,
+                            attackCommission: row[8] || 0,
+                            knifeCommission: row[9] || 0,
+                            teamAllowance: row[10] || 0,
+                            targetBonus: row[11] || 0,
+                            managementBonus: row[12] || 0,
+                            teamCommission: row[13] || 0,
+                            developmentManagementBonus: row[14] || 0,
+                            lateDeduction: Math.abs(row[16] || 0),
+                            vacationDeduction: Math.abs(row[17] || 0),
+                            expenseDeduction: Math.abs(row[18] || 0),
+                            performanceDeduction: Math.abs(row[19] || 0)
+                        };
+                    }
+                }
+            }
+            
+            // 解析提成計算表
+            if (workbook.Sheets['提成計算']) {
+                const commissionData = XLSX.utils.sheet_to_json(workbook.Sheets['提成計算'], { header: 1 });
+                
+                for (let i = 1; i < commissionData.length; i++) {
+                    const row = commissionData[i];
+                    const name = row[0];
+                    if (name && employees[name]) {
+                        employees[name].customerPerformance = row[2] || 0;
+                        employees[name].developmentPerformance = row[4] || 0;
+                        employees[name].selfCustomerPerformance = row[6] || 0;
+                        employees[name].attackPerformance = row[8] || 0;
+                        employees[name].knifePerformance = row[10] || 0;
+                    }
+                }
+            }
+            
+            // 解析業績來源表
+            if (workbook.Sheets['業績來源']) {
+                const performanceData = XLSX.utils.sheet_to_json(workbook.Sheets['業績來源'], { header: 1 });
+                
+                // 為每個員工初始化業績來源陣列
+                Object.keys(employees).forEach(name => {
+                    employees[name].customerSources = [];
+                    employees[name].developmentSources = [];
+                    employees[name].selfCustomerSources = [];
+                    employees[name].attackSources = [];
+                    employees[name].knifeSources = [];
+                });
+                
+                for (let i = 1; i < performanceData.length; i++) {
+                    const row = performanceData[i];
+                    const description = row[3] ? row[3].toString() : '';
+                    const performance = row[4] || 0;
+                    const developer = row[0];
+                    const customer = row[1];
+                    const attacker = row[2];
+                    
+                    if (description && performance > 0) {
+                        // 根據業績鏈位置分配到相應員工
+                        if (developer && employees[developer]) {
+                            employees[developer].developmentSources.push(`${description}：${performance.toLocaleString()}`);
+                        }
+                        if (customer && employees[customer] && customer !== '自己') {
+                            employees[customer].customerSources.push(`${description}：${performance.toLocaleString()}`);
+                        }
+                        if (customer === '自己' && developer && employees[developer]) {
+                            employees[developer].selfCustomerSources.push(`${description}：${performance.toLocaleString()}`);
+                        }
+                        if (attacker && employees[attacker]) {
+                            employees[attacker].attackSources.push(`${description}：${performance.toLocaleString()}`);
+                        }
+                    }
+                }
+            }
+            
+            return { employees };
+        }
+        
+        // 階梯式提成計算
+        function calculateTieredCommission(performance, usdtRate, type) {
+            if (!performance || performance <= 0) return { commission: 0, rate: '0%', afterExpense: 0 };
+            
+            const twdValue = performance * usdtRate;
+            let rate = 0;
+            let rateDisplay = '';
+            
+            switch(type) {
+                case 'customer':
+                    if (twdValue >= 7000000) { rate = 0.08; rateDisplay = '8%'; }
+                    else if (twdValue >= 3000000) { rate = 0.07; rateDisplay = '7%'; }
+                    else { rate = 0.065; rateDisplay = '6.5%'; }
+                    break;
+                case 'development':
+                    if (twdValue >= 10000000) { rate = 0.05; rateDisplay = '5%'; }
+                    else if (twdValue >= 5000000) { rate = 0.045; rateDisplay = '4.5%'; }
+                    else { rate = 0.04; rateDisplay = '4%'; }
+                    break;
+                case 'selfCustomer':
+                    if (twdValue >= 7000000) { rate = 0.10; rateDisplay = '10%'; }
+                    else if (twdValue >= 3000000) { rate = 0.09; rateDisplay = '9%'; }
+                    else { rate = 0.08; rateDisplay = '8%'; }
+                    break;
+                case 'attack':
+                    if (twdValue >= 9000000) { rate = 0.08; rateDisplay = '8%'; }
+                    else if (twdValue >= 6000000) { rate = 0.07; rateDisplay = '7%'; }
+                    else { rate = 0.06; rateDisplay = '6%'; }
+                    break;
+                case 'knife':
+                    if (twdValue >= 12000000) { rate = 0.07; rateDisplay = '7%'; }
+                    else if (twdValue >= 5000000) { rate = 0.06; rateDisplay = '6%'; }
+                    else { rate = 0.05; rateDisplay = '5%'; }
+                    break;
+                default:
+                    rate = 0; rateDisplay = '0%';
+            }
+            
+            return {
+                commission: Math.floor(performance * 0.9 * rate),
+                rate: rateDisplay,
+                afterExpense: Math.round(performance * 0.9 * 10) / 10
+            };
+        }
+        
+        // 顯示狀態信息
+        function showStatus(message, type) {
+            const statusEl = document.getElementById('fileStatus');
+            statusEl.textContent = message;
+            statusEl.className = `status-indicator status-${type}`;
+            statusEl.classList.remove('hidden');
+        }
+        
+        // 顯示員工列表
+        function displayEmployees() {
+            const grid = document.getElementById('employeeGrid');
+            const employees = excelData.employees;
+            
+            grid.innerHTML = '';
+            
+            Object.values(employees).forEach(employee => {
+                const card = document.createElement('div');
+                card.className = 'employee-card';
+                card.onclick = () => toggleEmployee(employee.name);
+                
+                card.innerHTML = `
+                    <div class="employee-info">
+                        <div class="employee-name">${employee.name}</div>
+                        <div class="employee-position">${employee.position}</div>
+                    </div>
+                    <div class="employee-salary">${employee.finalSalary.toLocaleString()} U</div>
+                `;
+                
+                grid.appendChild(card);
+            });
+            
+            document.getElementById('employeeCount').textContent = Object.keys(employees).length;
+        }
+        
+        // 切換員工選擇狀態
+        function toggleEmployee(employeeName) {
+            const cards = document.querySelectorAll('.employee-card');
+            const clickedCard = event.currentTarget;
+            
+            if (selectedEmployees.has(employeeName)) {
+                selectedEmployees.delete(employeeName);
+                clickedCard.classList.remove('selected');
+            } else {
+                selectedEmployees.add(employeeName);
+                clickedCard.classList.add('selected');
+            }
+            
+            updateButtonStates();
+        }
+        
+        // 更新按鈕狀態
+        function updateButtonStates() {
+            const hasEmployees = excelData && Object.keys(excelData.employees).length > 0;
+            const hasSelected = selectedEmployees.size > 0;
+            
+            document.getElementById('generateSelectedBtn').disabled = !hasSelected;
+            document.getElementById('generateAllBtn').disabled = !hasEmployees;
+            document.getElementById('selectedCount').textContent = selectedEmployees.size;
+        }
+        
+        // 生成選中員工薪資單
+        function generateSelected() {
+            if (selectedEmployees.size === 0) {
+                alert('請先選擇員工');
+                return;
+            }
+            
+            const slipsContainer = document.getElementById('salarySlips');
+            slipsContainer.innerHTML = '';
+            
+            selectedEmployees.forEach(employeeName => {
+                const employee = excelData.employees[employeeName];
+                if (employee) {
+                    const slipHTML = generateSalaryHTML(employee);
+                    slipsContainer.innerHTML += slipHTML;
+                }
+            });
+        }
+        
+        // 生成所有員工薪資單
+        function generateAll() {
+            if (!excelData || Object.keys(excelData.employees).length === 0) {
+                alert('請先上傳Excel檔案');
+                return;
+            }
+            
+            const slipsContainer = document.getElementById('salarySlips');
+            slipsContainer.innerHTML = '';
+            
+            Object.values(excelData.employees).forEach(employee => {
+                const slipHTML = generateSalaryHTML(employee);
+                slipsContainer.innerHTML += slipHTML;
+            });
+        }
+        
+        // 生成薪資單HTML
+        function generateSalaryHTML(employee) {
+            const currentDate = new Date().toLocaleDateString('zh-TW', { 
+                year: 'numeric', 
+                month: '2-digit'
+            });
+            
+            let salaryItemsHTML = '';
+            let performanceHTML = '';
+            
+            // 底薪
+            salaryItemsHTML += `
+                <div class="salary-row">
+                    <span class="salary-label">底薪</span>
+                    <span class="salary-calc">35,000 ÷ 32</span>
+                    <span class="salary-amount positive">${employee.baseSalary.toLocaleString()} U</span>
+                </div>
+            `;
+            
+            // 各項提成
+            if (employee.customerPerformance && employee.customerCommission) {
+                const customerCalc = calculateTieredCommission(employee.customerPerformance, 32, 'customer');
+                salaryItemsHTML += `
+                    <div class="salary-row">
+                        <span class="salary-label">客服提成${customerCalc.rate}</span>
+                        <span class="salary-calc">${customerCalc.afterExpense.toLocaleString()} U × ${customerCalc.rate}</span>
+                        <span class="salary-amount positive">${employee.customerCommission.toLocaleString()} U</span>
+                    </div>
+                `;
+                
+                performanceHTML += `
+                    <div class="performance-category">
+                        <div class="category-header">客服業績</div>
+                        <div class="performance-details">
+                            <div class="perf-row">
+                                <span class="perf-label">客服總業績</span>
+                                <span class="perf-value">${employee.customerPerformance.toLocaleString()} U</span>
+                            </div>
+                            <div class="perf-row">
+                                <span class="perf-label">大區開銷後業績</span>
+                                <span class="perf-value">${customerCalc.afterExpense.toLocaleString()} U (扣除10%)</span>
+                            </div>
+                            <div class="perf-row highlight">
+                                <span class="perf-label">客服提成${customerCalc.rate}</span>
+                                <span class="perf-value">${employee.customerCommission.toLocaleString()} U</span>
+                            </div>
+                        </div>
+                        ${employee.customerSources && employee.customerSources.length > 0 ? `
+                            <div class="source-section">
+                                <div class="source-header">來源明細：</div>
+                                <div class="source-list">
+                                    ${employee.customerSources.join('<br>')}
+                                </div>
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+            }
+            
+            if (employee.developmentPerformance && employee.developmentCommission) {
+                const devCalc = calculateTieredCommission(employee.developmentPerformance, 32, 'development');
+                salaryItemsHTML += `
+                    <div class="salary-row">
+                        <span class="salary-label">開發提成${devCalc.rate}</span>
+                        <span class="salary-calc">${devCalc.afterExpense.toLocaleString()} U × ${devCalc.rate}</span>
+                        <span class="salary-amount positive">${employee.developmentCommission.toLocaleString()} U</span>
+                    </div>
+                `;
+                
+                performanceHTML += `
+                    <div class="performance-category">
+                        <div class="category-header">開發業績</div>
+                        <div class="performance-details">
+                            <div class="perf-row">
+                                <span class="perf-label">開發總業績</span>
+                                <span class="perf-value">${employee.developmentPerformance.toLocaleString()} U</span>
+                            </div>
+                            <div class="perf-row">
+                                <span class="perf-label">大區開銷後業績</span>
+                                <span class="perf-value">${devCalc.afterExpense.toLocaleString()} U (扣除10%)</span>
+                            </div>
+                            <div class="perf-row highlight">
+                                <span class="perf-label">開發提成${devCalc.rate}</span>
+                                <span class="perf-value">${employee.developmentCommission.toLocaleString()} U</span>
+                            </div>
+                        </div>
+                        ${employee.developmentSources && employee.developmentSources.length > 0 ? `
+                            <div class="source-section">
+                                <div class="source-header">來源明細：</div>
+                                <div class="source-list">
+                                    ${employee.developmentSources.join('<br>')}
+                                </div>
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+            }
+            
+            if (employee.selfCustomerPerformance && employee.selfCustomerCommission) {
+                const selfCalc = calculateTieredCommission(employee.selfCustomerPerformance, 32, 'selfCustomer');
+                salaryItemsHTML += `
+                    <div class="salary-row">
+                        <span class="salary-label">自開客提成${selfCalc.rate}</span>
+                        <span class="salary-calc">${selfCalc.afterExpense.toLocaleString()} U × ${selfCalc.rate}</span>
+                        <span class="salary-amount positive">${employee.selfCustomerCommission.toLocaleString()} U</span>
+                    </div>
+                `;
+                
+                performanceHTML += `
+                    <div class="performance-category">
+                        <div class="category-header">自開客業績</div>
+                        <div class="performance-details">
+                            <div class="perf-row">
+                                <span class="perf-label">自開客總業績</span>
+                                <span class="perf-value">${employee.selfCustomerPerformance.toLocaleString()} U</span>
+                            </div>
+                            <div class="perf-row">
+                                <span class="perf-label">大區開銷後業績</span>
+                                <span class="perf-value">${selfCalc.afterExpense.toLocaleString()} U (扣除10%)</span>
+                            </div>
+                            <div class="perf-row highlight">
+                                <span class="perf-label">自開客提成${selfCalc.rate}</span>
+                                <span class="perf-value">${employee.selfCustomerCommission.toLocaleString()} U</span>
+                            </div>
+                        </div>
+                        ${employee.selfCustomerSources && employee.selfCustomerSources.length > 0 ? `
+                            <div class="source-section">
+                                <div class="source-header">來源明細：</div>
+                                <div class="source-list">
+                                    ${employee.selfCustomerSources.join('<br>')}
+                                </div>
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+            }
+            
+            if (employee.attackPerformance && employee.attackCommission) {
+                const attackCalc = calculateTieredCommission(employee.attackPerformance, 32, 'attack');
+                salaryItemsHTML += `
+                    <div class="salary-row">
+                        <span class="salary-label">攻擊手提成${attackCalc.rate}</span>
+                        <span class="salary-calc">${attackCalc.afterExpense.toLocaleString()} U × ${attackCalc.rate}</span>
+                        <span class="salary-amount positive">${employee.attackCommission.toLocaleString()} U</span>
+                    </div>
+                `;
+                
+                performanceHTML += `
+                    <div class="performance-category">
+                        <div class="category-header">攻擊手業績</div>
+                        <div class="performance-details">
+                            <div class="perf-row">
+                                <span class="perf-label">攻擊手總業績</span>
+                                <span class="perf-value">${employee.attackPerformance.toLocaleString()} U</span>
+                            </div>
+                            <div class="perf-row">
+                                <span class="perf-label">大區開銷後業績</span>
+                                <span class="perf-value">${attackCalc.afterExpense.toLocaleString()} U (扣除10%)</span>
+                            </div>
+                            <div class="perf-row highlight">
+                                <span class="perf-label">攻擊手提成${attackCalc.rate}</span>
+                                <span class="perf-value">${employee.attackCommission.toLocaleString()} U</span>
+                            </div>
+                        </div>
+                        ${employee.attackSources && employee.attackSources.length > 0 ? `
+                            <div class="source-section">
+                                <div class="source-header">來源明細：</div>
+                                <div class="source-list">
+                                    ${employee.attackSources.join('<br>')}
+                                </div>
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+            }
+            
+            // 其他獎金津貼
+            if (employee.teamAllowance > 0) {
+                salaryItemsHTML += `
+                    <div class="salary-row">
+                        <span class="salary-label">車隊津貼</span>
+                        <span class="salary-calc">31,941 ÷ 2 ÷ 26</span>
+                        <span class="salary-amount positive">${employee.teamAllowance.toLocaleString()} U</span>
+                    </div>
+                `;
+            }
+            
+            if (employee.teamCommission > 0) {
+                salaryItemsHTML += `
+                    <div class="salary-row">
+                        <span class="salary-label">團績提成</span>
+                        <span class="salary-calc">團隊業績獎勵</span>
+                        <span class="salary-amount positive">${employee.teamCommission.toLocaleString()} U</span>
+                    </div>
+                `;
+            }
+            
+            if (employee.targetBonus > 0) {
+                salaryItemsHTML += `
+                    <div class="salary-row">
+                        <span class="salary-label">達標獎金</span>
+                        <span class="salary-calc">目標達成獎勵</span>
+                        <span class="salary-amount positive">${employee.targetBonus.toLocaleString()} U</span>
+                    </div>
+                `;
+            }
+            
+            // 扣款項目
+            if (employee.expenseDeduction > 0) {
+                salaryItemsHTML += `
+                    <div class="salary-row">
+                        <span class="salary-label">開銷扣款</span>
+                        <span class="salary-calc">400 ÷ 6</span>
+                        <span class="salary-amount negative">-${employee.expenseDeduction.toLocaleString()} U</span>
+                    </div>
+                `;
+            }
+            
+            if (employee.lateDeduction > 0) {
+                salaryItemsHTML += `
+                    <div class="salary-row">
+                        <span class="salary-label">遲到扣款</span>
+                        <span class="salary-calc">${employee.lateMinutes}分鐘</span>
+                        <span class="salary-amount negative">-${employee.lateDeduction.toLocaleString()} U</span>
+                    </div>
+                `;
+            }
+            
+            if (employee.vacationDeduction > 0) {
+                salaryItemsHTML += `
+                    <div class="salary-row">
+                        <span class="salary-label">休假扣款</span>
+                        <span class="salary-calc">${employee.vacationDays}天</span>
+                        <span class="salary-amount negative">-${employee.vacationDeduction.toLocaleString()} U</span>
+                    </div>
+                `;
+            }
+            
+            return `
+                <div class="salary-slip">
+                    <div class="slip-header">
+                        <div class="header-left">
+                            <span class="calendar-icon">📅</span>
+                            <span class="header-title">個人薪資明細（${currentDate}）</span>
+                        </div>
+                        <div class="header-right">
+                            <span class="chart-icon">📊</span>
+                            <span class="performance-title">業績表現</span>
+                        </div>
+                    </div>
+                    
+                    <div class="slip-content">
+                        <div class="left-column">
+                            <div class="basic-info">
+                                <div class="info-row">
+                                    <span class="label">人員：</span>
+                                    <span class="value">${employee.name}</span>
+                                    <span class="label job-label">職位：</span>
+                                    <span class="value">${employee.position}</span>
+                                </div>
+                                <div class="note-row">
+                                    <span class="note">備註：本月 USDT 匯率：32</span>
+                                </div>
+                            </div>
+                            
+                            <div class="salary-section">
+                                <div class="section-header">
+                                    <span class="money-icon">💰</span>
+                                    <span>薪資結構</span>
+                                </div>
+                                
+                                <div class="salary-list">
+                                    ${salaryItemsHTML}
+                                </div>
+                                
+                                <div class="total-row">
+                                    <span class="total-label">本月總薪</span>
+                                    <span class="total-amount">${employee.finalSalary.toLocaleString()} U</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="right-column">
+                            ${performanceHTML}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // 列印薪資單
+        function printAll() {
+            window.print();
+        }
+        
+        // 清空結果
+        function clearAll() {
+            document.getElementById('salarySlips').innerHTML = `
+                <div class="loading">
+                    <div>📋 請上傳Excel檔案並選擇員工</div>
+                    <div style="margin-top: 20px; font-size: 14px; color: #888;">
+                        支援Excel格式：.xlsx, .xls<br>
+                        自動識別：薪資總表、提成計算、業績來源
+                    </div>
+                </div>
+            `;
+        }
+        
+        // 初始化
+        window.addEventListener('load', () => {
+            updateButtonStates();
+        });
+    </script>
+</body>
+</html>
