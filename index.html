@@ -1011,26 +1011,50 @@
                         </div>
                     `;
 
-                    // 右側業績表現
+                    // 右側業績表現 - 修正業績來源分類邏輯
                     const relatedSources = sources.filter(source => {
+                        // 確保來源數據存在且有效
+                        if (!source || !source[3] || !source[4]) return false;
+                        
+                        const developer = source[0] || '';
+                        const customer = source[1] || '';
+                        const attacker = source[2] || '';
+                        const description = source[3] || '';
+                        
                         switch(type.key) {
                             case 'customer':
-                                return source[2] && source[2].includes && source[2].includes(name);
+                                // 客服業績：客服欄位包含該員工名字，且不是自己
+                                return customer.includes(name) && !customer.includes('自己');
                             case 'development':
-                                return source[0] && source[0].includes && source[0].includes(name);
+                                // 開發業績：開發欄位包含該員工名字
+                                return developer.includes(name);
                             case 'selfCustomer':
-                                return source[1] && source[1].includes && source[1].includes('自己') && 
-                                       source[0] && source[0].includes && source[0].includes(name);
+                                // 自開客業績：客服欄位是「自己」且開發欄位包含該員工名字
+                                return customer.includes('自己') && developer.includes(name);
                             case 'attack':
-                                return source[2] && source[2].includes && !source[2].includes('自己');
+                                // 攻擊手業績：攻擊手欄位包含該員工名字
+                                return attacker.includes(name);
                             case 'knife':
-                                return source[2] && source[2].includes && source[2].includes(name);
+                                // 砍刀業績：根據描述或攻擊手欄位判斷（需要更具體的分類規則）
+                                return attacker.includes(name) && description.includes('砍刀');
                             default:
                                 return false;
                         }
                     });
 
-                    const sourcesList = relatedSources.map(source => 
+                    // 生成業績來源清單，去除重複項目
+                    const uniqueSources = [];
+                    const seenSources = new Set();
+                    
+                    relatedSources.forEach(source => {
+                        const sourceKey = `${source[3]}_${source[4]}`;
+                        if (!seenSources.has(sourceKey)) {
+                            seenSources.add(sourceKey);
+                            uniqueSources.push(source);
+                        }
+                    });
+                    
+                    const sourcesList = uniqueSources.map(source => 
                         `${source[3]}: ${(source[4] || 0).toLocaleString()} U`
                     ).join('<br>');
 
