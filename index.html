@@ -1,262 +1,1161 @@
-import React, { useState, useRef } from 'react';
-import { Upload, Users, User, Download, FileText, Settings, AlertCircle, CheckCircle, Eye } from 'lucide-react';
-
-const SalarySlipExcelSystem = () => {
-  const [workbook, setWorkbook] = useState(null);
-  const [employees, setEmployees] = useState([]);
-  const [selectedEmployee, setSelectedEmployee] = useState('');
-  const [selectedEmployeeData, setSelectedEmployeeData] = useState(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [showPreview, setShowPreview] = useState(false);
-  const [config, setConfig] = useState({
-    title: "📅 個人薪資明細（2025/05）",
-    usdtRate: 32,
-    showCalculation: true,
-    showPerformanceDetails: true
-  });
-  const fileInputRef = useRef(null);
-
-  // 薪資單生成器類
-  class SalarySlipGenerator {
-    constructor(workbook) {
-      this.workbook = workbook;
-      this.salaryData = this.sheetToJson(workbook.Sheets["薪資總表"]);
-      this.commissionData = this.sheetToJson(workbook.Sheets["提成計算"]);
-      this.performanceData = this.sheetToJson(workbook.Sheets["業績來源"]);
-    }
-
-    sheetToJson(sheet) {
-      if (!sheet) return [];
-      const range = sheet['!ref'];
-      if (!range) return [];
-      
-      const data = [];
-      const decode = (addr) => {
-        const match = addr.match(/^([A-Z]+)(\d+)$/);
-        return match ? {
-          c: match[1].split('').reduce((acc, char) => acc * 26 + char.charCodeAt(0) - 64, 0) - 1,
-          r: parseInt(match[2]) - 1
-        } : null;
-      };
-
-      const rangeObj = {
-        s: decode(range.split(':')[0]),
-        e: decode(range.split(':')[1])
-      };
-
-      for (let row = rangeObj.s.r; row <= rangeObj.e.r; row++) {
-        const rowData = [];
-        for (let col = rangeObj.s.c; col <= rangeObj.e.c; col++) {
-          const cellAddr = String.fromCharCode(65 + col) + (row + 1);
-          const cell = sheet[cellAddr];
-          rowData.push(cell ? cell.v : "");
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>薪資單Excel上傳系統</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
         }
-        data.push(rowData);
-      }
-      return data;
-    }
 
-    getAllEmployees() {
-      const employees = [];
-      for (let i = 1; i < this.salaryData.length; i++) {
-        if (this.salaryData[i][0]) {
-          employees.push(this.salaryData[i][0]);
+        body {
+            font-family: 'Microsoft JhengHei', sans-serif;
+            background-color: #f9fafb;
+            line-height: 1.6;
         }
-      }
-      return employees;
-    }
 
-    getEmployeeData(employeeName) {
-      return {
-        salary: this.getSalaryInfo(employeeName),
-        commission: this.getCommissionInfo(employeeName),
-        performanceDetails: this.getPerformanceDetails(employeeName)
-      };
-    }
-
-    getSalaryInfo(employeeName) {
-      for (let i = 1; i < this.salaryData.length; i++) {
-        if (this.salaryData[i][0] === employeeName) {
-          const row = this.salaryData[i];
-          return {
-            name: row[0],
-            position: row[1],
-            baseSalary: row[2] || 0,
-            developCommission: row[3] || 0,
-            serviceCommission: row[4] || 0,
-            selfOpenCommission: row[5] || 0,
-            adCommission: row[6] || 0,
-            groupCommission: row[7] || 0,
-            attackCommission: row[8] || 0,
-            knifeCommission: row[9] || 0,
-            carAllowance: row[10] || 0,
-            targetBonus: row[11] || 0,
-            managerBonus: row[12] || 0,
-            teamCommission: row[13] || 0,
-            developManageBonus: row[14] || 0,
-            bridgeWork: row[15] || 0,
-            lateDeduction: row[16] || 0,
-            leaveDeduction: row[17] || 0,
-            expenseDeduction: row[18] || 0,
-            performanceDeduction: row[19] || 0,
-            totalSalary: row[20] || 0,
-            advance: row[21] || 0,
-            finalPay: row[22] || 0,
-            lateMinutes: row[23] || 0,
-            leaveDays: row[24] || 0
-          };
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 24px;
+            min-height: 100vh;
         }
-      }
-      return null;
-    }
 
-    getCommissionInfo(employeeName) {
-      for (let i = 1; i < this.commissionData.length; i++) {
-        if (this.commissionData[i][0] === employeeName) {
-          const row = this.commissionData[i];
-          return {
-            servicePerformance: row[2] || 0,
-            serviceCommission: row[3] || 0,
-            developPerformance: row[4] || 0,
-            developCommission: row[5] || 0,
-            selfOpenPerformance: row[6] || 0,
-            selfOpenCommission: row[7] || 0,
-            attackPerformance: row[8] || 0,
-            attackCommission: row[9] || 0,
-            knifePerformance: row[10] || 0,
-            knifeCommission: row[11] || 0
-          };
+        .header {
+            margin-bottom: 32px;
         }
-      }
-      return null;
-    }
 
-    getPerformanceDetails(employeeName) {
-      const details = {
-        attack: [],
-        service: [],
-        selfOpen: [],
-        develop: [],
-        knife: [],
-        group: []
-      };
-
-      for (let i = 0; i < this.performanceData.length; i++) {
-        const row = this.performanceData[i];
-        const [developer, service, attacker, description, amount] = row;
-        
-        if (description && String(description).includes(employeeName)) {
-          const record = { description, amount };
-          
-          if (attacker === employeeName) {
-            details.attack.push(record);
-          }
-          if (service === employeeName) {
-            details.service.push(record);
-          }
-          if (developer === employeeName) {
-            details.selfOpen.push(record);
-            details.develop.push(record);
-          }
+        .header h1 {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #1f2937;
+            margin-bottom: 8px;
         }
-      }
 
-      return details;
-    }
-  }
-
-  // 處理檔案上傳
-  const handleFileUpload = async (event) => {
-    const file = event.target.files[0];
-    if (!file) return;
-
-    setIsLoading(true);
-    try {
-      // 讀取檔案
-      const arrayBuffer = await file.arrayBuffer();
-      
-      // 由於這是演示環境，我們使用模擬資料
-      // 在實際環境中，這裡應該使用 SheetJS 來讀取真實的 Excel 檔案
-      const mockWorkbook = {
-        SheetNames: ["薪資總表", "提成計算", "業績來源"],
-        Sheets: {
-          "薪資總表": {
-            "!ref": "A1:Y10",
-            "A1": { v: "姓名" }, "B1": { v: "職位" }, "C1": { v: "底薪" },
-            "A2": { v: "董卓" }, "B2": { v: "自開客" }, "C2": { v: 2094 },
-            "D2": { v: 0 }, "E2": { v: 1364 }, "F2": { v: 2078 },
-            "G2": { v: 0 }, "H2": { v: 0 }, "I2": { v: 0 }, "J2": { v: 0 },
-            "K2": { v: 614 }, "L2": { v: 0 }, "M2": { v: 0 }, "N2": { v: 0 },
-            "O2": { v: 0 }, "P2": { v: 0 }, "Q2": { v: -675 }, "R2": { v: 0 },
-            "S2": { v: 0 }, "T2": { v: 0 }, "U2": { v: 5475 }, "V2": { v: 0 },
-            "W2": { v: 5475 }, "X2": { v: 135 }, "Y2": { v: 0 },
-            "A3": { v: "小駿" }, "B3": { v: "客服" }, "C3": { v: 2000 },
-            "D3": { v: 0 }, "E3": { v: 800 }, "F3": { v: 0 },
-            "U3": { v: 2800 }, "W3": { v: 2800 }
-          },
-          "提成計算": {
-            "!ref": "A1:L5",
-            "A1": { v: "姓名" }, "C1": { v: "客服業績" }, "D1": { v: "客服提成" },
-            "G1": { v: "自開客業績" }, "H1": { v: "自開客提成" },
-            "A2": { v: "董卓" }, "C2": { v: 23320 }, "D2": { v: 1364 },
-            "G2": { v: 28874 }, "H2": { v: 2078 },
-            "A3": { v: "小駿" }, "C3": { v: 15000 }, "D3": { v: 800 }
-          },
-          "業績來源": {
-            "!ref": "A1:E10",
-            "A1": { v: "開發者" }, "B1": { v: "客服" }, "C1": { v: "攻擊手" },
-            "D1": { v: "描述" }, "E1": { v: "金額" },
-            "A2": { v: "董卓" }, "B2": { v: "董卓" }, "C2": { v: "" },
-            "D2": { v: "奶爸導董卓導凌晨：8,617" }, "E2": { v: 8617 },
-            "A3": { v: "董卓" }, "B3": { v: "董卓" }, "C3": { v: "" },
-            "D3": { v: "順子導董卓導凌晨：267" }, "E3": { v: 267 },
-            "A4": { v: "董卓" }, "B4": { v: "董卓" }, "C4": { v: "" },
-            "D4": { v: "許靈光導董卓導凌晨：14,436" }, "E4": { v: 14436 },
-            "A5": { v: "董卓" }, "B5": { v: "" }, "C5": { v: "" },
-            "D5": { v: "董卓導自己：620" }, "E5": { v: 620 },
-            "A6": { v: "董卓" }, "B6": { v: "" }, "C6": { v: "" },
-            "D6": { v: "董卓導自己導凌晨：28,254" }, "E6": { v: 28254 }
-          }
+        .header p {
+            color: #6b7280;
         }
-      };
 
-      setWorkbook(mockWorkbook);
-      
-      // 創建薪資單生成器
-      const generator = new SalarySlipGenerator(mockWorkbook);
-      const employeeList = generator.getAllEmployees();
-      setEmployees(employeeList);
-      
-    } catch (error) {
-      console.error('檔案讀取錯誤:', error);
-      alert('檔案讀取失敗，請確認檔案格式正確');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+            gap: 24px;
+        }
 
-  // 選擇員工並生成資料
-  const handleEmployeeSelect = (employeeName) => {
-    setSelectedEmployee(employeeName);
-    if (workbook && employeeName) {
-      const generator = new SalarySlipGenerator(workbook);
-      const employeeData = generator.getEmployeeData(employeeName);
-      setSelectedEmployeeData(employeeData);
-      setShowPreview(true);
-    }
-  };
+        @media (max-width: 1024px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+        }
 
-  // 格式化數字
-  const formatNumber = (num) => {
-    if (!num || num === '') return '0';
-    return typeof num === 'number' ? num.toLocaleString() : num;
-  };
+        .card {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            padding: 24px;
+            margin-bottom: 24px;
+        }
 
-  // 下載薪資單
-  const downloadSalarySlip = () => {
-    if (!selectedEmployeeData) return;
-    
-    const content = `
+        .card-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .card-header h2 {
+            font-size: 1.25rem;
+            font-weight: bold;
+            color: #1f2937;
+            margin-left: 8px;
+        }
+
+        .upload-area {
+            border: 2px dashed #d1d5db;
+            border-radius: 8px;
+            padding: 24px;
+            text-align: center;
+            transition: border-color 0.3s;
+        }
+
+        .upload-area:hover {
+            border-color: #3b82f6;
+        }
+
+        .upload-area.has-file {
+            border-color: #10b981;
+            background-color: #f0fdf4;
+        }
+
+        .upload-icon {
+            width: 48px;
+            height: 48px;
+            margin: 0 auto 16px;
+            color: #9ca3af;
+        }
+
+        .upload-icon.success {
+            color: #10b981;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border-radius: 6px;
+            border: none;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.3s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background-color: #3b82f6;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background-color: #2563eb;
+        }
+
+        .btn-secondary {
+            background-color: #6b7280;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background-color: #4b5563;
+        }
+
+        .btn-success {
+            background-color: #10b981;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background-color: #059669;
+        }
+
+        .btn-purple {
+            background-color: #8b5cf6;
+            color: white;
+        }
+
+        .btn-purple:hover {
+            background-color: #7c3aed;
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-group label {
+            display: block;
+            font-weight: 500;
+            margin-bottom: 8px;
+            color: #374151;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .checkbox-group input {
+            margin-right: 8px;
+        }
+
+        .employee-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 12px;
+        }
+
+        .employee-card {
+            padding: 16px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-align: left;
+        }
+
+        .employee-card:hover {
+            background-color: #eff6ff;
+            border-color: #3b82f6;
+        }
+
+        .employee-card.selected {
+            background-color: #eff6ff;
+            border-color: #3b82f6;
+        }
+
+        .employee-info {
+            padding: 12px;
+            background-color: #f9fafb;
+            border-radius: 6px;
+            margin-top: 16px;
+        }
+
+        .salary-slip {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .salary-slip-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 32px;
+            padding: 32px;
+        }
+
+        @media (max-width: 768px) {
+            .salary-slip-content {
+                grid-template-columns: 1fr;
+                gap: 24px;
+            }
+        }
+
+        .section-header {
+            border-bottom: 2px solid #3b82f6;
+            padding-bottom: 16px;
+            margin-bottom: 24px;
+        }
+
+        .section-header.green {
+            border-bottom-color: #10b981;
+        }
+
+        .section-header h2 {
+            font-size: 1.25rem;
+            font-weight: bold;
+            color: #3b82f6;
+        }
+
+        .section-header.green h2 {
+            color: #10b981;
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .info-item {
+            display: flex;
+        }
+
+        .info-label {
+            font-weight: 500;
+            color: #6b7280;
+            width: 64px;
+        }
+
+        .info-value {
+            font-weight: bold;
+        }
+
+        .salary-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .salary-label {
+            font-weight: 500;
+        }
+
+        .salary-calculation {
+            font-size: 12px;
+            color: #6b7280;
+            margin-left: 8px;
+        }
+
+        .salary-value {
+            font-weight: bold;
+        }
+
+        .salary-value.positive {
+            color: #10b981;
+        }
+
+        .salary-value.negative {
+            color: #ef4444;
+        }
+
+        .salary-total {
+            border-top: 2px solid #d1d5db;
+            margin-top: 16px;
+            padding-top: 16px;
+        }
+
+        .salary-total .salary-item {
+            margin-bottom: 0;
+        }
+
+        .salary-total .salary-value {
+            font-size: 1.25rem;
+            color: #3b82f6;
+        }
+
+        .performance-section {
+            background-color: #f9fafb;
+            padding: 16px;
+            border-radius: 8px;
+            margin-bottom: 24px;
+        }
+
+        .performance-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+
+        .performance-details {
+            margin-top: 16px;
+            padding-top: 16px;
+            border-top: 1px solid #d1d5db;
+        }
+
+        .performance-details p {
+            font-size: 12px;
+            color: #6b7280;
+            margin-bottom: 4px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 48px;
+        }
+
+        .spinner {
+            width: 48px;
+            height: 48px;
+            border: 3px solid #f3f4f6;
+            border-top: 3px solid #3b82f6;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 16px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .alert {
+            text-align: center;
+            padding: 48px;
+            color: #6b7280;
+        }
+
+        .alert-icon {
+            width: 48px;
+            height: 48px;
+            margin: 0 auto 16px;
+            color: #9ca3af;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .w-full {
+            width: 100%;
+        }
+
+        .text-center {
+            text-align: center;
+        }
+
+        .text-sm {
+            font-size: 14px;
+        }
+
+        .text-xs {
+            font-size: 12px;
+        }
+
+        .mb-2 {
+            margin-bottom: 8px;
+        }
+
+        .mb-4 {
+            margin-bottom: 16px;
+        }
+
+        .mt-4 {
+            margin-top: 16px;
+        }
+
+        .space-y-2 > * + * {
+            margin-top: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>薪資單Excel上傳系統</h1>
+            <p>上傳Excel檔案，選擇員工名稱生成薪資明細單</p>
+        </div>
+
+        <div class="grid">
+            <!-- 左側控制面板 -->
+            <div>
+                <!-- 檔案上傳 -->
+                <div class="card">
+                    <div class="card-header">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"/>
+                        </svg>
+                        <h2>檔案上傳</h2>
+                    </div>
+
+                    <div id="uploadArea" class="upload-area">
+                        <input type="file" id="fileInput" accept=".xlsx,.xls" class="hidden">
+                        
+                        <div id="uploadPrompt">
+                            <div class="upload-icon">
+                                <svg width="48" height="48" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"/>
+                                </svg>
+                            </div>
+                            <p class="mb-4">選擇薪資單Excel檔案</p>
+                            <button class="btn btn-primary" onclick="document.getElementById('fileInput').click()">
+                                選擇檔案
+                            </button>
+                            <p class="text-xs mt-4">需包含：薪資總表、提成計算、業績來源等工作表</p>
+                        </div>
+
+                        <div id="uploadSuccess" class="hidden">
+                            <div class="upload-icon success">
+                                <svg width="48" height="48" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12A10,10 0 0,1 12,2M11,16.5L18,9.5L16.59,8.09L11,13.67L7.91,10.59L6.5,12L11,16.5Z"/>
+                                </svg>
+                            </div>
+                            <p class="text-success mb-2">檔案已上傳</p>
+                            <p id="employeeCount" class="text-sm mb-4">找到 0 位員工</p>
+                            <button class="btn btn-secondary" onclick="document.getElementById('fileInput').click()">
+                                重新上傳
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 設定面板 -->
+                <div class="card">
+                    <div class="card-header">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12,15.5A3.5,3.5 0 0,1 8.5,12A3.5,3.5 0 0,1 12,8.5A3.5,3.5 0 0,1 15.5,12A3.5,3.5 0 0,1 12,15.5M19.43,12.97C19.47,12.65 19.5,12.33 19.5,12C19.5,11.67 19.47,11.34 19.43,11L21.54,9.37C21.73,9.22 21.78,8.95 21.66,8.73L19.66,5.27C19.54,5.05 19.27,4.97 19.05,5.05L16.56,6.05C16.04,5.66 15.5,5.32 14.87,5.07L14.5,2.42C14.46,2.18 14.25,2 14,2H10C9.75,2 9.54,2.18 9.5,2.42L9.13,5.07C8.5,5.32 7.96,5.66 7.44,6.05L4.95,5.05C4.73,4.96 4.46,5.05 4.34,5.27L2.34,8.73C2.21,8.95 2.27,9.22 2.46,9.37L4.57,11C4.53,11.34 4.5,11.67 4.5,12C4.5,12.33 4.53,12.65 4.57,12.97L2.46,14.63C2.27,14.78 2.21,15.05 2.34,15.27L4.34,18.73C4.46,18.95 4.73,19.03 4.95,18.95L7.44,17.94C7.96,18.34 8.5,18.68 9.13,18.93L9.5,21.58C9.54,21.82 9.75,22 10,22H14C14.25,22 14.46,21.82 14.5,21.58L14.87,18.93C15.5,18.68 16.04,18.34 16.56,17.94L19.05,18.95C19.27,19.04 19.54,18.95 19.66,18.73L21.66,15.27C21.78,15.05 21.73,14.78 21.54,14.63L19.43,12.97Z"/>
+                        </svg>
+                        <h2>薪資單設定</h2>
+                    </div>
+
+                    <div class="form-group">
+                        <label>薪資單標題</label>
+                        <input type="text" id="titleInput" class="form-control" value="📅 個人薪資明細（2025/05）">
+                    </div>
+
+                    <div class="form-group">
+                        <label>USDT匯率</label>
+                        <input type="number" id="usdtRateInput" class="form-control" value="32">
+                    </div>
+
+                    <div class="space-y-2">
+                        <div class="checkbox-group">
+                            <input type="checkbox" id="showCalculation" checked>
+                            <label for="showCalculation">顯示計算過程</label>
+                        </div>
+
+                        <div class="checkbox-group">
+                            <input type="checkbox" id="showPerformanceDetails" checked>
+                            <label for="showPerformanceDetails">顯示業績明細</label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 員工選擇 -->
+                <div id="employeeSelection" class="card hidden">
+                    <div class="card-header">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12,4A4,4 0 0,1 16,8A4,4 0 0,1 12,12A4,4 0 0,1 8,8A4,4 0 0,1 12,4M12,14C16.42,14 20,15.79 20,18V20H4V18C4,15.79 7.58,14 12,14Z"/>
+                        </svg>
+                        <h2>選擇員工</h2>
+                    </div>
+
+                    <div class="form-group">
+                        <select id="employeeSelect" class="form-control">
+                            <option value="">請選擇員工</option>
+                        </select>
+                    </div>
+
+                    <div id="selectedEmployeeInfo" class="employee-info hidden">
+                        <h3 id="employeeName" class="mb-2"></h3>
+                        <p id="employeeSalaryInfo" class="text-sm mb-4"></p>
+                        <div class="space-y-2">
+                            <button id="togglePreviewBtn" class="btn btn-success w-full" onclick="togglePreview()">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M12,9A3,3 0 0,0 9,12A3,3 0 0,0 12,15A3,3 0 0,0 15,12A3,3 0 0,0 12,9M12,17A5,5 0 0,1 7,12A5,5 0 0,1 12,7A5,5 0 0,1 17,12A5,5 0 0,1 12,17M12,4.5C7,4.5 2.73,7.61 1,12C2.73,16.39 7,19.5 12,19.5C17,19.5 21.27,16.39 23,12C21.27,7.61 17,4.5 12,4.5Z"/>
+                                </svg>
+                                顯示薪資單
+                            </button>
+                            <button class="btn btn-purple w-full" onclick="downloadSalarySlip()">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M5,20H19V18H5M19,9H15V3H9V9H5L12,16L19,9Z"/>
+                                </svg>
+                                下載薪資單
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 右側主要內容 -->
+            <div>
+                <!-- 薪資單預覽 -->
+                <div id="salarySlipPreview" class="hidden"></div>
+
+                <!-- 員工清單 -->
+                <div id="employeeList" class="card hidden">
+                    <div class="card-header">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M16,4C18.2,4 20,5.8 20,8C20,10.2 18.2,12 16,12C13.8,12 12,10.2 12,8C12,5.8 13.8,4 16,4M16,5A3,3 0 0,0 13,8A3,3 0 0,0 16,11A3,3 0 0,0 19,8A3,3 0 0,0 16,5M16,13C18.67,13 22,14.33 22,17V20H10V17C10,14.33 13.33,13 16,13M8,4C10.2,4 12,5.8 12,8C12,10.2 10.2,12 8,12C5.8,12 4,10.2 4,8C4,5.8 5.8,4 8,4M8,13C10.67,13 14,14.33 14,17V20H2V17C2,14.33 5.33,13 8,13Z"/>
+                        </svg>
+                        <h2>員工清單</h2>
+                    </div>
+                    <div id="employeeGrid" class="employee-grid"></div>
+                </div>
+
+                <!-- 提示訊息 -->
+                <div id="alertMessage" class="card">
+                    <div class="alert">
+                        <div class="alert-icon">
+                            <svg width="48" height="48" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M13,13H11V7H13M13,17H11V15H13M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z"/>
+                            </svg>
+                        </div>
+                        <p>請先上傳Excel檔案開始使用</p>
+                    </div>
+                </div>
+
+                <!-- 載入中 -->
+                <div id="loadingMessage" class="card hidden">
+                    <div class="loading">
+                        <div class="spinner"></div>
+                        <p>處理中...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 全域變數
+        let workbook = null;
+        let employees = [];
+        let selectedEmployeeData = null;
+        let showPreview = false;
+
+        // 薪資單生成器類
+        class SalarySlipGenerator {
+            constructor(workbook) {
+                this.workbook = workbook;
+                this.salaryData = this.sheetToJson(workbook.Sheets["薪資總表"]);
+                this.commissionData = this.sheetToJson(workbook.Sheets["提成計算"]);
+                this.performanceData = this.sheetToJson(workbook.Sheets["業績來源"]);
+            }
+
+            sheetToJson(sheet) {
+                if (!sheet) return [];
+                const range = sheet['!ref'];
+                if (!range) return [];
+                
+                const data = [];
+                const decode = (addr) => {
+                    const match = addr.match(/^([A-Z]+)(\d+)$/);
+                    return match ? {
+                        c: match[1].split('').reduce((acc, char) => acc * 26 + char.charCodeAt(0) - 64, 0) - 1,
+                        r: parseInt(match[2]) - 1
+                    } : null;
+                };
+
+                const rangeObj = {
+                    s: decode(range.split(':')[0]),
+                    e: decode(range.split(':')[1])
+                };
+
+                for (let row = rangeObj.s.r; row <= rangeObj.e.r; row++) {
+                    const rowData = [];
+                    for (let col = rangeObj.s.c; col <= rangeObj.e.c; col++) {
+                        const cellAddr = String.fromCharCode(65 + col) + (row + 1);
+                        const cell = sheet[cellAddr];
+                        rowData.push(cell ? cell.v : "");
+                    }
+                    data.push(rowData);
+                }
+                return data;
+            }
+
+            getAllEmployees() {
+                const employees = [];
+                for (let i = 1; i < this.salaryData.length; i++) {
+                    if (this.salaryData[i][0]) {
+                        employees.push(this.salaryData[i][0]);
+                    }
+                }
+                return employees;
+            }
+
+            getEmployeeData(employeeName) {
+                return {
+                    salary: this.getSalaryInfo(employeeName),
+                    commission: this.getCommissionInfo(employeeName),
+                    performanceDetails: this.getPerformanceDetails(employeeName)
+                };
+            }
+
+            getSalaryInfo(employeeName) {
+                for (let i = 1; i < this.salaryData.length; i++) {
+                    if (this.salaryData[i][0] === employeeName) {
+                        const row = this.salaryData[i];
+                        return {
+                            name: row[0],
+                            position: row[1],
+                            baseSalary: row[2] || 0,
+                            developCommission: row[3] || 0,
+                            serviceCommission: row[4] || 0,
+                            selfOpenCommission: row[5] || 0,
+                            adCommission: row[6] || 0,
+                            groupCommission: row[7] || 0,
+                            attackCommission: row[8] || 0,
+                            knifeCommission: row[9] || 0,
+                            carAllowance: row[10] || 0,
+                            targetBonus: row[11] || 0,
+                            managerBonus: row[12] || 0,
+                            teamCommission: row[13] || 0,
+                            developManageBonus: row[14] || 0,
+                            bridgeWork: row[15] || 0,
+                            lateDeduction: row[16] || 0,
+                            leaveDeduction: row[17] || 0,
+                            expenseDeduction: row[18] || 0,
+                            performanceDeduction: row[19] || 0,
+                            totalSalary: row[20] || 0,
+                            advance: row[21] || 0,
+                            finalPay: row[22] || 0,
+                            lateMinutes: row[23] || 0,
+                            leaveDays: row[24] || 0
+                        };
+                    }
+                }
+                return null;
+            }
+
+            getCommissionInfo(employeeName) {
+                for (let i = 1; i < this.commissionData.length; i++) {
+                    if (this.commissionData[i][0] === employeeName) {
+                        const row = this.commissionData[i];
+                        return {
+                            servicePerformance: row[2] || 0,
+                            serviceCommission: row[3] || 0,
+                            developPerformance: row[4] || 0,
+                            developCommission: row[5] || 0,
+                            selfOpenPerformance: row[6] || 0,
+                            selfOpenCommission: row[7] || 0,
+                            attackPerformance: row[8] || 0,
+                            attackCommission: row[9] || 0,
+                            knifePerformance: row[10] || 0,
+                            knifeCommission: row[11] || 0
+                        };
+                    }
+                }
+                return null;
+            }
+
+            getPerformanceDetails(employeeName) {
+                const details = {
+                    attack: [],
+                    service: [],
+                    selfOpen: [],
+                    develop: [],
+                    knife: [],
+                    group: []
+                };
+
+                for (let i = 0; i < this.performanceData.length; i++) {
+                    const row = this.performanceData[i];
+                    const [developer, service, attacker, description, amount] = row;
+                    
+                    if (description && String(description).includes(employeeName)) {
+                        const record = { description, amount };
+                        
+                        if (attacker === employeeName) {
+                            details.attack.push(record);
+                        }
+                        if (service === employeeName) {
+                            details.service.push(record);
+                        }
+                        if (developer === employeeName) {
+                            details.selfOpen.push(record);
+                            details.develop.push(record);
+                        }
+                    }
+                }
+
+                return details;
+            }
+        }
+
+        // 格式化數字
+        function formatNumber(num) {
+            if (!num || num === '') return '0';
+            return typeof num === 'number' ? num.toLocaleString() : num;
+        }
+
+        // 檔案上傳處理
+        document.getElementById('fileInput').addEventListener('change', async function(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            showLoading(true);
+
+            try {
+                // 模擬Excel檔案處理
+                const mockWorkbook = {
+                    SheetNames: ["薪資總表", "提成計算", "業績來源"],
+                    Sheets: {}
+                };
+
+                // 薪資總表
+                mockWorkbook.Sheets["薪資總表"] = {
+                    "!ref": "A1:Y10",
+                    "A1": { v: "姓名" },
+                    "B1": { v: "職位" },
+                    "C1": { v: "底薪" },
+                    "A2": { v: "董卓" },
+                    "B2": { v: "自開客" },
+                    "C2": { v: 2094 },
+                    "D2": { v: 0 },
+                    "E2": { v: 1364 },
+                    "F2": { v: 2078 },
+                    "G2": { v: 0 },
+                    "H2": { v: 0 },
+                    "I2": { v: 0 },
+                    "J2": { v: 0 },
+                    "K2": { v: 614 },
+                    "L2": { v: 0 },
+                    "M2": { v: 0 },
+                    "N2": { v: 0 },
+                    "O2": { v: 0 },
+                    "P2": { v: 0 },
+                    "Q2": { v: -675 },
+                    "R2": { v: 0 },
+                    "S2": { v: 0 },
+                    "T2": { v: 0 },
+                    "U2": { v: 5475 },
+                    "V2": { v: 0 },
+                    "W2": { v: 5475 },
+                    "X2": { v: 135 },
+                    "Y2": { v: 0 },
+                    "A3": { v: "小駿" },
+                    "B3": { v: "客服" },
+                    "C3": { v: 2000 },
+                    "D3": { v: 0 },
+                    "E3": { v: 800 },
+                    "F3": { v: 0 },
+                    "U3": { v: 2800 },
+                    "W3": { v: 2800 },
+                    "A4": { v: "奶爸" },
+                    "B4": { v: "客服" },
+                    "C4": { v: 2000 },
+                    "U4": { v: 2650 },
+                    "W4": { v: 2650 }
+                };
+
+                // 提成計算
+                mockWorkbook.Sheets["提成計算"] = {
+                    "!ref": "A1:L5",
+                    "A1": { v: "姓名" },
+                    "C1": { v: "客服業績" },
+                    "D1": { v: "客服提成" },
+                    "G1": { v: "自開客業績" },
+                    "H1": { v: "自開客提成" },
+                    "A2": { v: "董卓" },
+                    "C2": { v: 23320 },
+                    "D2": { v: 1364 },
+                    "G2": { v: 28874 },
+                    "H2": { v: 2078 },
+                    "A3": { v: "小駿" },
+                    "C3": { v: 15000 },
+                    "D3": { v: 800 },
+                    "A4": { v: "奶爸" },
+                    "C4": { v: 12000 },
+                    "D4": { v: 650 }
+                };
+
+                // 業績來源
+                mockWorkbook.Sheets["業績來源"] = {
+                    "!ref": "A1:E10",
+                    "A1": { v: "開發者" },
+                    "B1": { v: "客服" },
+                    "C1": { v: "攻擊手" },
+                    "D1": { v: "描述" },
+                    "E1": { v: "金額" },
+                    "A2": { v: "董卓" },
+                    "B2": { v: "董卓" },
+                    "C2": { v: "" },
+                    "D2": { v: "奶爸導董卓導凌晨：8,617" },
+                    "E2": { v: 8617 },
+                    "A3": { v: "董卓" },
+                    "B3": { v: "董卓" },
+                    "C3": { v: "" },
+                    "D3": { v: "順子導董卓導凌晨：267" },
+                    "E3": { v: 267 },
+                    "A4": { v: "董卓" },
+                    "B4": { v: "董卓" },
+                    "C4": { v: "" },
+                    "D4": { v: "許靈光導董卓導凌晨：14,436" },
+                    "E4": { v: 14436 },
+                    "A5": { v: "董卓" },
+                    "B5": { v: "" },
+                    "C5": { v: "" },
+                    "D5": { v: "董卓導自己：620" },
+                    "E5": { v: 620 },
+                    "A6": { v: "董卓" },
+                    "B6": { v: "" },
+                    "C6": { v: "" },
+                    "D6": { v: "董卓導自己導凌晨：28,254" },
+                    "E6": { v: 28254 }
+                };
+
+                workbook = mockWorkbook;
+                const generator = new SalarySlipGenerator(mockWorkbook);
+                employees = generator.getAllEmployees();
+
+                updateUI();
+
+            } catch (error) {
+                console.error('檔案讀取錯誤:', error);
+                alert('檔案讀取失敗，請確認檔案格式正確');
+            } finally {
+                showLoading(false);
+            }
+        });
+
+        // 更新UI
+        function updateUI() {
+            // 更新上傳狀態
+            document.getElementById('uploadPrompt').classList.add('hidden');
+            document.getElementById('uploadSuccess').classList.remove('hidden');
+            document.getElementById('uploadArea').classList.add('has-file');
+            document.getElementById('employeeCount').textContent = `找到 ${employees.length} 位員工`;
+
+            // 顯示員工選擇
+            document.getElementById('employeeSelection').classList.remove('hidden');
+            document.getElementById('employeeList').classList.remove('hidden');
+            document.getElementById('alertMessage').classList.add('hidden');
+
+            // 更新員工選擇下拉選單
+            const employeeSelect = document.getElementById('employeeSelect');
+            employeeSelect.innerHTML = '<option value="">請選擇員工</option>';
+            employees.forEach(name => {
+                const option = document.createElement('option');
+                option.value = name;
+                option.textContent = name;
+                employeeSelect.appendChild(option);
+            });
+
+            // 更新員工清單
+            const employeeGrid = document.getElementById('employeeGrid');
+            employeeGrid.innerHTML = '';
+            employees.forEach(name => {
+                const employeeCard = document.createElement('div');
+                employeeCard.className = 'employee-card';
+                employeeCard.innerHTML = `<div class="font-weight-bold">${name}</div>`;
+                employeeCard.onclick = () => selectEmployee(name);
+                employeeGrid.appendChild(employeeCard);
+            });
+        }
+
+        // 選擇員工
+        function selectEmployee(employeeName) {
+            if (!workbook) return;
+
+            document.getElementById('employeeSelect').value = employeeName;
+            
+            // 更新員工卡片選中狀態
+            document.querySelectorAll('.employee-card').forEach(card => {
+                card.classList.remove('selected');
+                if (card.textContent.trim() === employeeName) {
+                    card.classList.add('selected');
+                }
+            });
+
+            const generator = new SalarySlipGenerator(workbook);
+            selectedEmployeeData = generator.getEmployeeData(employeeName);
+
+            if (selectedEmployeeData) {
+                // 顯示員工資訊
+                document.getElementById('selectedEmployeeInfo').classList.remove('hidden');
+                document.getElementById('employeeName').textContent = 
+                    `${selectedEmployeeData.salary.name} - ${selectedEmployeeData.salary.position}`;
+                document.getElementById('employeeSalaryInfo').textContent = 
+                    `總薪資: ${formatNumber(selectedEmployeeData.salary.totalSalary)} U | 實發: ${formatNumber(selectedEmployeeData.salary.finalPay)} U`;
+                
+                // 自動顯示薪資單
+                showPreview = true;
+                generateSalarySlipPreview();
+                document.getElementById('togglePreviewBtn').innerHTML = `
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M11.83,9L15,12.16L11.83,15.33L10.41,13.91L12.5,11.83L10.41,9.75L11.83,9M7.5,8A1.5,1.5 0 0,0 6,9.5V14.5A1.5,1.5 0 0,0 7.5,16H16.5A1.5,1.5 0 0,0 18,14.5V9.5A1.5,1.5 0 0,0 16.5,8H7.5Z"/>
+                    </svg>
+                    隱藏薪資單`;
+            }
+        }
+
+        // 員工選擇下拉選單事件
+        document.getElementById('employeeSelect').addEventListener('change', function() {
+            const selectedName = this.value;
+            if (selectedName) {
+                selectEmployee(selectedName);
+            }
+        });
+
+        // 切換預覽
+        function togglePreview() {
+            showPreview = !showPreview;
+            const btn = document.getElementById('togglePreviewBtn');
+            
+            if (showPreview) {
+                generateSalarySlipPreview();
+                btn.innerHTML = `
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M11.83,9L15,12.16L11.83,15.33L10.41,13.91L12.5,11.83L10.41,9.75L11.83,9M7.5,8A1.5,1.5 0 0,0 6,9.5V14.5A1.5,1.5 0 0,0 7.5,16H16.5A1.5,1.5 0 0,0 18,14.5V9.5A1.5,1.5 0 0,0 16.5,8H7.5Z"/>
+                    </svg>
+                    隱藏薪資單`;
+            } else {
+                document.getElementById('salarySlipPreview').classList.add('hidden');
+                document.getElementById('employeeList').classList.remove('hidden');
+                btn.innerHTML = `
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12,9A3,3 0 0,0 9,12A3,3 0 0,0 12,15A3,3 0 0,0 15,12A3,3 0 0,0 12,9M12,17A5,5 0 0,1 7,12A5,5 0 0,1 12,7A5,5 0 0,1 17,12A5,5 0 0,1 12,17M12,4.5C7,4.5 2.73,7.61 1,12C2.73,16.39 7,19.5 12,19.5C17,19.5 21.27,16.39 23,12C21.27,7.61 17,4.5 12,4.5Z"/>
+                    </svg>
+                    顯示薪資單`;
+            }
+        }
+
+        // 生成薪資單預覽
+        function generateSalarySlipPreview() {
+            if (!selectedEmployeeData) return;
+
+            const data = selectedEmployeeData;
+            const config = {
+                title: document.getElementById('titleInput').value,
+                usdtRate: parseInt(document.getElementById('usdtRateInput').value),
+                showCalculation: document.getElementById('showCalculation').checked,
+                showPerformanceDetails: document.getElementById('showPerformanceDetails').checked
+            };
+
+            let salaryStructureHTML = '';
+            
+            // 底薪
+            salaryStructureHTML += '<div class="salary-item">';
+            salaryStructureHTML += '<div>';
+            salaryStructureHTML += '<span class="salary-label">底薪</span>';
+            if (config.showCalculation) {
+                salaryStructureHTML += '<span class="salary-calculation">67,000 ÷ ' + config.usdtRate + '</span>';
+            }
+            salaryStructureHTML += '</div>';
+            salaryStructureHTML += '<span class="salary-value positive">' + formatNumber(data.salary.baseSalary) + ' U</span>';
+            salaryStructureHTML += '</div>';
+
+            // 客服提成
+            if (data.salary.serviceCommission > 0) {
+                salaryStructureHTML += '<div class="salary-item">';
+                salaryStructureHTML += '<div>';
+                salaryStructureHTML += '<span class="salary-label">客服提成6.5%</span>';
+                if (config.showCalculation) {
+                    salaryStructureHTML += '<span class="salary-calculation">' + formatNumber(Math.round(data.commission.servicePerformance * 0.9 * 10) / 10) + ' U × 6.5%</span>';
+                }
+                salaryStructureHTML += '</div>';
+                salaryStructureHTML += '<span class="salary-value positive">' + formatNumber(data.salary.serviceCommission) + ' U</span>';
+                salaryStructureHTML += '</div>';
+            }
+
+            // 自開客提成
+            if (data.salary.selfOpenCommission > 0) {
+                salaryStructureHTML += '<div class="salary-item">';
+                salaryStructureHTML += '<div>';
+                salaryStructureHTML += '<span class="salary-label">自開客提成8%</span>';
+                if (config.showCalculation) {
+                    salaryStructureHTML += '<span class="salary-calculation">' + formatNumber(Math.round(data.commission.selfOpenPerformance * 0.9 * 10) / 10) + ' U × 8%</span>';
+                }
+                salaryStructureHTML += '</div>';
+                salaryStructureHTML += '<span class="salary-value positive">' + formatNumber(data.salary.selfOpenCommission) + ' U</span>';
+                salaryStructureHTML += '</div>';
+            }
+
+            // 車隊津貼
+            if (data.salary.carAllowance > 0) {
+                salaryStructureHTML += '<div class="salary-item">';
+                salaryStructureHTML += '<div>';
+                salaryStructureHTML += '<span class="salary-label">車隊津貼</span>';
+                if (config.showCalculation) {
+                    salaryStructureHTML += '<span class="salary-calculation">31,941 ÷ 2 ÷ 26</span>';
+                }
+                salaryStructureHTML += '</div>';
+                salaryStructureHTML += '<span class="salary-value positive">' + formatNumber(data.salary.carAllowance) + ' U</span>';
+                salaryStructureHTML += '</div>';
+            }
+
+            // 遲到扣款
+            if (data.salary.lateDeduction < 0) {
+                salaryStructureHTML += '<div class="salary-item">';
+                salaryStructureHTML += '<div>';
+                salaryStructureHTML += '<span class="salary-label" style="color: #ef4444;">遲到扣款</span>';
+                salaryStructureHTML += '<span class="salary-calculation">' + data.salary.lateMinutes + '分鐘</span>';
+                salaryStructureHTML += '</div>';
+                salaryStructureHTML += '<span class="salary-value negative">' + data.salary.lateDeduction + ' U</span>';
+                salaryStructureHTML += '</div>';
+            }
+
+            // 客服業績部分
+            let servicePerformanceHTML = '';
+            if (data.commission.servicePerformance > 0) {
+                servicePerformanceHTML += '<div class="performance-section">';
+                servicePerformanceHTML += '<h4 style="font-weight: bold; color: #1f2937; margin-bottom: 12px;">客服業績</h4>';
+                servicePerformanceHTML += '<div class="performance-item">';
+                servicePerformanceHTML += '<span>客服總業績</span>';
+                servicePerformanceHTML += '<span style="font-weight: bold;">' + formatNumber(data.commission.servicePerformance) + ' U</span>';
+                servicePerformanceHTML += '</div>';
+                servicePerformanceHTML += '<div class="performance-item">';
+                servicePerformanceHTML += '<span>大區開銷後業績</span>';
+                servicePerformanceHTML += '<span style="font-weight: bold;">' + formatNumber(Math.round(data.commission.servicePerformance * 0.9 * 10) / 10) + ' U (扣除10%)</span>';
+                servicePerformanceHTML += '</div>';
+                servicePerformanceHTML += '<div class="performance-item">';
+                servicePerformanceHTML += '<span>客服提成6.5%</span>';
+                servicePerformanceHTML += '<span style="font-weight: bold; color: #10b981;">' + formatNumber(data.commission.serviceCommission) + ' U</span>';
+                servicePerformanceHTML += '</div>';
+                
+                if (config.showPerformanceDetails && data.performanceDetails.service.length > 0) {
+                    servicePerformanceHTML += '<div class="performance-details">';
+                    servicePerformanceHTML += '<p style="font-size: 14px; font-weight: 500; color: #6b7280; margin-bottom: 8px;">來源明細：</p>';
+                    data.performanceDetails.service.forEach(function(detail) {
+                        servicePerformanceHTML += '<p>' + detail.description + '</p>';
+                    });
+                    servicePerformanceHTML += '</div>';
+                }
+                servicePerformanceHTML += '</div>';
+            }
+
+            // 自開客業績部分
+            let selfOpenPerformanceHTML = '';
+            if (data.commission.selfOpenPerformance > 0) {
+                selfOpenPerformanceHTML += '<div class="performance-section">';
+                selfOpenPerformanceHTML += '<h4 style="font-weight: bold; color: #1f2937; margin-bottom: 12px;">自開客業績</h4>';
+                selfOpenPerformanceHTML += '<div class="performance-item">';
+                selfOpenPerformanceHTML += '<span>自開客總業績</span>';
+                selfOpenPerformanceHTML += '<span style="font-weight: bold;">' + formatNumber(data.commission.selfOpenPerformance) + ' U</span>';
+                selfOpenPerformanceHTML += '</div>';
+                selfOpenPerformanceHTML += '<div class="performance-item">';
+                selfOpenPerformanceHTML += '<span>大區開銷後業績</span>';
+                selfOpenPerformanceHTML += '<span style="font-weight: bold;">' + formatNumber(Math.round(data.commission.selfOpenPerformance * 0.9 * 10) / 10) + ' U (扣除10%)</span>';
+                selfOpenPerformanceHTML += '</div>';
+                selfOpenPerformanceHTML += '<div class="performance-item">';
+                selfOpenPerformanceHTML += '<span>自開客提成8%</span>';
+                selfOpenPerformanceHTML += '<span style="font-weight: bold; color: #10b981;">' + formatNumber(data.commission.selfOpenCommission) + ' U</span>';
+                selfOpenPerformanceHTML += '</div>';
+                
+                if (config.showPerformanceDetails && data.performanceDetails.selfOpen.length > 0) {
+                    selfOpenPerformanceHTML += '<div class="performance-details">';
+                    selfOpenPerformanceHTML += '<p style="font-size: 14px; font-weight: 500; color: #6b7280; margin-bottom: 8px;">來源明細：</p>';
+                    data.performanceDetails.selfOpen.forEach(function(detail) {
+                        selfOpenPerformanceHTML += '<p>' + detail.description + '</p>';
+                    });
+                    selfOpenPerformanceHTML += '</div>';
+                }
+                selfOpenPerformanceHTML += '</div>';
+            }
+
+            const previewContainer = document.getElementById('salarySlipPreview');
+            previewContainer.innerHTML = 
+                '<div class="salary-slip">' +
+                    '<div class="salary-slip-content">' +
+                        '<!-- 左側：薪資明細 -->' +
+                        '<div>' +
+                            '<div class="section-header">' +
+                                '<h2>' + config.title + '</h2>' +
+                            '</div>' +
+                            '<!-- 基本資訊 -->' +
+                            '<div class="info-grid mb-4">' +
+                                '<div class="info-item">' +
+                                    '<span class="info-label">人員：</span>' +
+                                    '<span class="info-value">' + data.salary.name + '</span>' +
+                                '</div>' +
+                                '<div class="info-item">' +
+                                    '<span class="info-label">職位：</span>' +
+                                    '<span class="info-value">' + data.salary.position + '</span>' +
+                                '</div>' +
+                            '</div>' +
+                            '<div class="mb-4">' +
+                                '<span class="info-label">備註：</span>' +
+                                '<span class="text-sm">本月 USDT 匯率：' + config.usdtRate + '</span>' +
+                            '</div>' +
+                            '<!-- 薪資結構 -->' +
+                            '<div class="mb-4">' +
+                                '<h3 style="font-size: 1.125rem; font-weight: bold; color: #1f2937; margin-bottom: 16px; border-bottom: 1px solid #d1d5db; padding-bottom: 8px;">💰 薪資結構</h3>' +
+                                salaryStructureHTML +
+                                '<div class="salary-total">' +
+                                    '<div class="salary-item">' +
+                                        '<span style="font-size: 1.125rem; font-weight: bold;">本月總薪</span>' +
+                                        '<span class="salary-value" style="font-size: 1.25rem; color: #3b82f6;">' + formatNumber(data.salary.totalSalary) + ' U</span>' +
+                                    '</div>' +
+                                '</div>' +
+                            '</div>' +
+                        '</div>' +
+                        '<!-- 右側：業績表現 -->' +
+                        '<div>' +
+                            '<div class="section-header green">' +
+                                '<h2>📊 業績表現</h2>' +
+                            '</div>' +
+                            servicePerformanceHTML +
+                            selfOpenPerformanceHTML +
+                        '</div>' +
+                    '</div>' +
+                '</div>';
+
+            previewContainer.classList.remove('hidden');
+            document.getElementById('employeeList').classList.add('hidden');
+        }
+
+        // 下載薪資單
+        function downloadSalarySlip() {
+            if (!selectedEmployeeData) return;
+
+            const content = `
 薪資明細單
 ================
 員工: ${selectedEmployeeData.salary.name}
@@ -273,395 +1172,26 @@ const SalarySlipExcelSystem = () => {
 實發薪資: ${formatNumber(selectedEmployeeData.salary.finalPay)} U
 ================
 生成時間: ${new Date().toLocaleString()}
-    `;
-    
-    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${selectedEmployeeData.salary.name}_薪資明細.txt`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
+            `;
 
-  // 薪資單預覽組件
-  const SalarySlipPreview = ({ data }) => {
-    if (!data) return null;
+            const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${selectedEmployeeData.salary.name}_薪資明細.txt`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
 
-    return (
-      <div className="bg-white rounded-lg shadow-lg overflow-hidden">
-        <div className="grid grid-cols-2 gap-6 p-8">
-          {/* 左側：薪資明細 */}
-          <div>
-            <div className="border-b-2 border-blue-500 pb-4 mb-6">
-              <h2 className="text-xl font-bold text-blue-600">{config.title}</h2>
-            </div>
-
-            {/* 基本資訊 */}
-            <div className="mb-6">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="flex">
-                  <span className="font-medium text-gray-600 w-16">人員：</span>
-                  <span className="font-bold">{data.salary.name}</span>
-                </div>
-                <div className="flex">
-                  <span className="font-medium text-gray-600 w-16">職位：</span>
-                  <span className="font-bold">{data.salary.position}</span>
-                </div>
-              </div>
-              <div className="mt-2">
-                <span className="font-medium text-gray-600">備註：</span>
-                <span className="text-sm text-gray-500">本月 USDT 匯率：{config.usdtRate}</span>
-              </div>
-            </div>
-
-            {/* 薪資結構 */}
-            <div className="mb-6">
-              <h3 className="text-lg font-bold text-gray-800 mb-4 border-b pb-2">💰 薪資結構</h3>
-              <div className="space-y-3">
-                <div className="flex justify-between items-center">
-                  <div>
-                    <span className="font-medium">底薪</span>
-                    {config.showCalculation && (
-                      <span className="text-sm text-gray-500 ml-2">67,000 ÷ {config.usdtRate}</span>
-                    )}
-                  </div>
-                  <span className="font-bold text-green-600">{formatNumber(data.salary.baseSalary)} U</span>
-                </div>
-
-                {data.salary.serviceCommission > 0 && (
-                  <div className="flex justify-between items-center">
-                    <div>
-                      <span className="font-medium">客服提成6.5%</span>
-                      {config.showCalculation && (
-                        <span className="text-sm text-gray-500 ml-2">{formatNumber(Math.round(data.commission.servicePerformance * 0.9 * 10) / 10)} U × 6.5%</span>
-                      )}
-                    </div>
-                    <span className="font-bold text-green-600">{formatNumber(data.salary.serviceCommission)} U</span>
-                  </div>
-                )}
-
-                {data.salary.selfOpenCommission > 0 && (
-                  <div className="flex justify-between items-center">
-                    <div>
-                      <span className="font-medium">自開客提成8%</span>
-                      {config.showCalculation && (
-                        <span className="text-sm text-gray-500 ml-2">{formatNumber(Math.round(data.commission.selfOpenPerformance * 0.9 * 10) / 10)} U × 8%</span>
-                      )}
-                    </div>
-                    <span className="font-bold text-green-600">{formatNumber(data.salary.selfOpenCommission)} U</span>
-                  </div>
-                )}
-
-                {data.salary.carAllowance > 0 && (
-                  <div className="flex justify-between items-center">
-                    <div>
-                      <span className="font-medium">車隊津貼</span>
-                      {config.showCalculation && (
-                        <span className="text-sm text-gray-500 ml-2">31,941 ÷ 2 ÷ 26</span>
-                      )}
-                    </div>
-                    <span className="font-bold text-green-600">{formatNumber(data.salary.carAllowance)} U</span>
-                  </div>
-                )}
-
-                {data.salary.lateDeduction < 0 && (
-                  <div className="flex justify-between items-center">
-                    <div>
-                      <span className="font-medium text-red-600">遲到扣款</span>
-                      <span className="text-sm text-gray-500 ml-2">{data.salary.lateMinutes}分鐘</span>
-                    </div>
-                    <span className="font-bold text-red-600">{data.salary.lateDeduction} U</span>
-                  </div>
-                )}
-              </div>
-
-              <div className="border-t-2 border-gray-300 mt-4 pt-4">
-                <div className="flex justify-between items-center">
-                  <span className="text-lg font-bold">本月總薪</span>
-                  <span className="text-xl font-bold text-blue-600">{formatNumber(data.salary.totalSalary)} U</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* 右側：業績表現 */}
-          <div>
-            <div className="border-b-2 border-green-500 pb-4 mb-6">
-              <h2 className="text-xl font-bold text-green-600">📊 業績表現</h2>
-            </div>
-
-            {/* 客服業績 */}
-            {data.commission.servicePerformance > 0 && (
-              <div className="mb-6">
-                <h4 className="font-bold text-gray-800 mb-3">客服業績</h4>
-                <div className="bg-gray-50 p-4 rounded">
-                  <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <span>客服總業績</span>
-                      <span className="font-bold">{formatNumber(data.commission.servicePerformance)} U</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>大區開銷後業績</span>
-                      <span className="font-bold">{formatNumber(Math.round(data.commission.servicePerformance * 0.9 * 10) / 10)} U (扣除10%)</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>客服提成6.5%</span>
-                      <span className="font-bold text-green-600">{formatNumber(data.commission.serviceCommission)} U</span>
-                    </div>
-                  </div>
-                  {config.showPerformanceDetails && data.performanceDetails.service.length > 0 && (
-                    <div className="mt-4 pt-4 border-t">
-                      <p className="text-sm font-medium text-gray-600 mb-2">來源明細：</p>
-                      {data.performanceDetails.service.map((detail, index) => (
-                        <p key={index} className="text-xs text-gray-500">{detail.description}</p>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* 自開客業績 */}
-            {data.commission.selfOpenPerformance > 0 && (
-              <div className="mb-6">
-                <h4 className="font-bold text-gray-800 mb-3">自開客業績</h4>
-                <div className="bg-gray-50 p-4 rounded">
-                  <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <span>自開客總業績</span>
-                      <span className="font-bold">{formatNumber(data.commission.selfOpenPerformance)} U</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>大區開銷後業績</span>
-                      <span className="font-bold">{formatNumber(Math.round(data.commission.selfOpenPerformance * 0.9 * 10) / 10)} U (扣除10%)</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>自開客提成8%</span>
-                      <span className="font-bold text-green-600">{formatNumber(data.commission.selfOpenCommission)} U</span>
-                    </div>
-                  </div>
-                  {config.showPerformanceDetails && data.performanceDetails.selfOpen.length > 0 && (
-                    <div className="mt-4 pt-4 border-t">
-                      <p className="text-sm font-medium text-gray-600 mb-2">來源明細：</p>
-                      {data.performanceDetails.selfOpen.map((detail, index) => (
-                        <p key={index} className="text-xs text-gray-500">{detail.description}</p>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  return (
-    <div className="max-w-7xl mx-auto p-6 bg-gray-50 min-h-screen">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-800 mb-2">薪資單Excel上傳系統</h1>
-        <p className="text-gray-600">上傳Excel檔案，選擇員工名稱生成薪資明細單</p>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* 左側控制面板 */}
-        <div className="lg:col-span-1">
-          {/* 檔案上傳 */}
-          <div className="bg-white rounded-lg shadow p-6 mb-6">
-            <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center">
-              <Upload className="mr-2" size={20} />
-              檔案上傳
-            </h2>
-            
-            <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
-              <input
-                type="file"
-                ref={fileInputRef}
-                onChange={handleFileUpload}
-                accept=".xlsx,.xls"
-                className="hidden"
-              />
-              
-              {!workbook ? (
-                <div>
-                  <Upload className="mx-auto mb-4 text-gray-400" size={48} />
-                  <p className="text-gray-500 mb-4">選擇薪資單Excel檔案</p>
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
-                  >
-                    選擇檔案
-                  </button>
-                  <p className="text-xs text-gray-400 mt-2">
-                    需包含：薪資總表、提成計算、業績來源等工作表
-                  </p>
-                </div>
-              ) : (
-                <div>
-                  <CheckCircle className="mx-auto mb-4 text-green-500" size={48} />
-                  <p className="text-green-600 mb-2">檔案已上傳</p>
-                  <p className="text-sm text-gray-500">找到 {employees.length} 位員工</p>
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    className="mt-4 bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600"
-                  >
-                    重新上傳
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* 設定面板 */}
-          <div className="bg-white rounded-lg shadow p-6 mb-6">
-            <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center">
-              <Settings className="mr-2" size={20} />
-              薪資單設定
-            </h2>
-            
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium mb-2">薪資單標題</label>
-                <input
-                  type="text"
-                  value={config.title}
-                  onChange={(e) => setConfig({...config, title: e.target.value})}
-                  className="w-full p-2 border rounded"
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium mb-2">USDT匯率</label>
-                <input
-                  type="number"
-                  value={config.usdtRate}
-                  onChange={(e) => setConfig({...config, usdtRate: parseInt(e.target.value)})}
-                  className="w-full p-2 border rounded"
-                />
-              </div>
-              
-              <div className="space-y-2">
-                <label className="flex items-center">
-                  <input
-                    type="checkbox"
-                    checked={config.showCalculation}
-                    onChange={(e) => setConfig({...config, showCalculation: e.target.checked})}
-                    className="mr-2"
-                  />
-                  顯示計算過程
-                </label>
-                
-                <label className="flex items-center">
-                  <input
-                    type="checkbox"
-                    checked={config.showPerformanceDetails}
-                    onChange={(e) => setConfig({...config, showPerformanceDetails: e.target.checked})}
-                    className="mr-2"
-                  />
-                  顯示業績明細
-                </label>
-              </div>
-            </div>
-          </div>
-
-          {/* 員工選擇 */}
-          {workbook && (
-            <div className="bg-white rounded-lg shadow p-6">
-              <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center">
-                <User className="mr-2" size={20} />
-                選擇員工
-              </h2>
-              
-              <div className="space-y-3">
-                <select
-                  value={selectedEmployee}
-                  onChange={(e) => handleEmployeeSelect(e.target.value)}
-                  className="w-full p-2 border rounded"
-                >
-                  <option value="">請選擇員工</option>
-                  {employees.map(name => (
-                    <option key={name} value={name}>{name}</option>
-                  ))}
-                </select>
-                
-                {selectedEmployeeData && (
-                  <div className="mt-4 p-3 bg-gray-50 rounded">
-                    <h3 className="font-medium mb-2">{selectedEmployeeData.salary.name} - {selectedEmployeeData.salary.position}</h3>
-                    <p className="text-sm text-gray-600">
-                      總薪資: {formatNumber(selectedEmployeeData.salary.totalSalary)} U
-                    </p>
-                    <p className="text-sm text-gray-600">
-                      實發: {formatNumber(selectedEmployeeData.salary.finalPay)} U
-                    </p>
-                    <div className="mt-3 space-y-2">
-                      <button
-                        onClick={() => setShowPreview(!showPreview)}
-                        className="w-full bg-green-500 text-white py-2 rounded hover:bg-green-600 flex items-center justify-center"
-                      >
-                        <Eye className="mr-2" size={16} />
-                        {showPreview ? '隱藏' : '顯示'}薪資單
-                      </button>
-                      <button
-                        onClick={downloadSalarySlip}
-                        className="w-full bg-purple-500 text-white py-2 rounded hover:bg-purple-600 flex items-center justify-center"
-                      >
-                        <Download className="mr-2" size={16} />
-                        下載薪資單
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* 右側主要內容 */}
-        <div className="lg:col-span-2">
-          {showPreview && selectedEmployeeData ? (
-            <SalarySlipPreview data={selectedEmployeeData} />
-          ) : workbook ? (
-            <div className="bg-white rounded-lg shadow p-6">
-              <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center">
-                <Users className="mr-2" size={20} />
-                員工清單
-              </h2>
-              
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                {employees.map(name => (
-                  <button
-                    key={name}
-                    onClick={() => handleEmployeeSelect(name)}
-                    className={`p-3 text-left border rounded hover:bg-blue-50 ${
-                      selectedEmployee === name ? 'border-blue-500 bg-blue-50' : 'border-gray-300'
-                    }`}
-                  >
-                    <div className="font-medium">{name}</div>
-                  </button>
-                ))}
-              </div>
-            </div>
-          ) : (
-            <div className="bg-white rounded-lg shadow p-6 text-center">
-              <AlertCircle className="mx-auto mb-4 text-gray-400" size={48} />
-              <p className="text-gray-500">請先上傳Excel檔案開始使用</p>
-            </div>
-          )}
-
-          {isLoading && (
-            <div className="bg-white rounded-lg shadow p-6 text-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
-              <p className="text-gray-500">處理中...</p>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-};
-
-export default SalarySlipExcelSystem;
+        // 顯示載入中
+        function showLoading(show) {
+            if (show) {
+                document.getElementById('loadingMessage').classList.remove('hidden');
+                document.getElementById('alertMessage').classList.add('hidden');
+            } else {
+                document.getElementById('loadingMessage').classList.add('hidden');
+            }
+        }
+    </script>
+</body>
+</html>
