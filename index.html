@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>薪資單Excel上傳系統</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -622,8 +623,12 @@
 
             getAllEmployees() {
                 const employees = [];
-                for (let i = 1; i < this.salaryData.length; i++) {
-                    if (this.salaryData[i][0]) {
+                // 從第3行開始讀取（跳過空行和標題行）
+                for (let i = 2; i < this.salaryData.length - 2; i++) { // 排除最後兩行統計資料
+                    if (this.salaryData[i][0] && 
+                        this.salaryData[i][0] !== '總計' && 
+                        this.salaryData[i][0] !== '台幣' &&
+                        this.salaryData[i][0] !== '人員') {
                         employees.push(this.salaryData[i][0]);
                     }
                 }
@@ -639,35 +644,36 @@
             }
 
             getSalaryInfo(employeeName) {
-                for (let i = 1; i < this.salaryData.length; i++) {
+                // 從第3行開始查找（跳過空行和標題行）
+                for (let i = 2; i < this.salaryData.length - 2; i++) { // 排除最後兩行統計資料
                     if (this.salaryData[i][0] === employeeName) {
                         const row = this.salaryData[i];
                         return {
-                            name: row[0],
-                            position: row[1],
-                            baseSalary: row[2] || 0,
-                            developCommission: row[3] || 0,
-                            serviceCommission: row[4] || 0,
-                            selfOpenCommission: row[5] || 0,
-                            adCommission: row[6] || 0,
-                            groupCommission: row[7] || 0,
-                            attackCommission: row[8] || 0,
-                            knifeCommission: row[9] || 0,
-                            carAllowance: row[10] || 0,
-                            targetBonus: row[11] || 0,
-                            managerBonus: row[12] || 0,
-                            teamCommission: row[13] || 0,
-                            developManageBonus: row[14] || 0,
-                            bridgeWork: row[15] || 0,
-                            lateDeduction: row[16] || 0,
-                            leaveDeduction: row[17] || 0,
-                            expenseDeduction: row[18] || 0,
-                            performanceDeduction: row[19] || 0,
-                            totalSalary: row[20] || 0,
-                            advance: row[21] || 0,
-                            finalPay: row[22] || 0,
-                            lateMinutes: row[23] || 0,
-                            leaveDays: row[24] || 0
+                            name: row[0],                    // A: 人員
+                            position: row[1],               // B: 職位
+                            baseSalary: row[2] || 0,        // C: 本月底薪
+                            developCommission: row[3] || 0,  // D: 開發提成
+                            serviceCommission: row[4] || 0,  // E: 客服提成
+                            selfOpenCommission: row[5] || 0, // F: 自開客提成
+                            adCommission: row[6] || 0,       // G: 廣告提成
+                            groupCommission: row[7] || 0,    // H: 炒群手提成
+                            attackCommission: row[8] || 0,   // I: 攻擊手提成
+                            knifeCommission: row[9] || 0,    // J: 砍刀提成
+                            carAllowance: row[10] || 0,      // K: 車隊津貼 (如果有)
+                            targetBonus: row[11] || 0,       // L: 目標獎金 (如果有)
+                            managerBonus: row[12] || 0,      // M: 主管獎金 (如果有)
+                            teamCommission: row[13] || 0,    // N: 團隊提成 (如果有)
+                            developManageBonus: row[14] || 0, // O: 開發管理獎金 (如果有)
+                            bridgeWork: row[15] || 0,        // P: 橋接工作 (如果有)
+                            lateDeduction: row[16] || 0,     // Q: 遲到扣款 (如果有)
+                            leaveDeduction: row[17] || 0,    // R: 請假扣款 (如果有)
+                            expenseDeduction: row[18] || 0,  // S: 費用扣款 (如果有)
+                            performanceDeduction: row[19] || 0, // T: 績效扣款 (如果有)
+                            totalSalary: row[20] || 0,       // U: 總薪資 (如果有)
+                            advance: row[21] || 0,           // V: 預支 (如果有)
+                            finalPay: row[22] || 0,          // W: 實發薪資 (如果有)
+                            lateMinutes: row[23] || 0,       // X: 遲到分鐘 (如果有)
+                            leaveDays: row[24] || 0          // Y: 請假天數 (如果有)
                         };
                     }
                 }
@@ -675,20 +681,21 @@
             }
 
             getCommissionInfo(employeeName) {
+                // 從第2行開始查找（跳過標題行）
                 for (let i = 1; i < this.commissionData.length; i++) {
                     if (this.commissionData[i][0] === employeeName) {
                         const row = this.commissionData[i];
                         return {
-                            servicePerformance: row[2] || 0,
-                            serviceCommission: row[3] || 0,
-                            developPerformance: row[4] || 0,
-                            developCommission: row[5] || 0,
-                            selfOpenPerformance: row[6] || 0,
-                            selfOpenCommission: row[7] || 0,
-                            attackPerformance: row[8] || 0,
-                            attackCommission: row[9] || 0,
-                            knifePerformance: row[10] || 0,
-                            knifeCommission: row[11] || 0
+                            servicePerformance: row[2] || 0,    // C: 客服業績
+                            serviceCommission: row[3] || 0,     // D: 客服提成
+                            developPerformance: row[4] || 0,    // E: 開發業績
+                            developCommission: row[5] || 0,     // F: 開發提成
+                            selfOpenPerformance: row[6] || 0,   // G: 自開客業績
+                            selfOpenCommission: row[7] || 0,    // H: 自開客提成
+                            attackPerformance: row[8] || 0,     // I: 攻擊手業績
+                            attackCommission: row[9] || 0,      // J: 攻擊手提成
+                            knifePerformance: row[10] || 0,     // K: 砍刀業績
+                            knifeCommission: row[11] || 0       // L: 砍刀提成
                         };
                     }
                 }
@@ -705,13 +712,14 @@
                     group: []
                 };
 
-                for (let i = 0; i < this.performanceData.length; i++) {
+                for (let i = 1; i < this.performanceData.length; i++) {
                     const row = this.performanceData[i];
                     const [developer, service, attacker, description, amount] = row;
                     
-                    if (description && String(description).includes(employeeName)) {
+                    if (description && amount) {
                         const record = { description, amount };
                         
+                        // 根據不同角色分類業績
                         if (attacker === employeeName) {
                             details.attack.push(record);
                         }
@@ -719,8 +727,21 @@
                             details.service.push(record);
                         }
                         if (developer === employeeName) {
-                            details.selfOpen.push(record);
                             details.develop.push(record);
+                            // 如果是自開客相關，也加入自開客分類
+                            if (description && (description.includes('自己') || description.includes('自開'))) {
+                                details.selfOpen.push(record);
+                            }
+                        }
+                        
+                        // 根據描述內容進一步分類
+                        if (description && String(description).includes(employeeName)) {
+                            if (description.includes('砍刀') || description.includes('刀')) {
+                                details.knife.push(record);
+                            }
+                            if (description.includes('炒群') || description.includes('群')) {
+                                details.group.push(record);
+                            }
                         }
                     }
                 }
@@ -743,123 +764,42 @@
             showLoading(true);
 
             try {
-                // 模擬Excel檔案處理
-                const mockWorkbook = {
-                    SheetNames: ["薪資總表", "提成計算", "業績來源"],
-                    Sheets: {}
-                };
+                // 讀取真實Excel檔案
+                const arrayBuffer = await file.arrayBuffer();
+                
+                // 引入SheetJS（這裡需要在HTML中引入SheetJS庫）
+                if (typeof XLSX === 'undefined') {
+                    // 如果沒有SheetJS，動態載入
+                    const script = document.createElement('script');
+                    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+                    document.head.appendChild(script);
+                    
+                    // 等待載入完成
+                    await new Promise((resolve) => {
+                        script.onload = resolve;
+                    });
+                }
 
-                // 薪資總表
-                mockWorkbook.Sheets["薪資總表"] = {
-                    "!ref": "A1:Y10",
-                    "A1": { v: "姓名" },
-                    "B1": { v: "職位" },
-                    "C1": { v: "底薪" },
-                    "A2": { v: "董卓" },
-                    "B2": { v: "自開客" },
-                    "C2": { v: 2094 },
-                    "D2": { v: 0 },
-                    "E2": { v: 1364 },
-                    "F2": { v: 2078 },
-                    "G2": { v: 0 },
-                    "H2": { v: 0 },
-                    "I2": { v: 0 },
-                    "J2": { v: 0 },
-                    "K2": { v: 614 },
-                    "L2": { v: 0 },
-                    "M2": { v: 0 },
-                    "N2": { v: 0 },
-                    "O2": { v: 0 },
-                    "P2": { v: 0 },
-                    "Q2": { v: -675 },
-                    "R2": { v: 0 },
-                    "S2": { v: 0 },
-                    "T2": { v: 0 },
-                    "U2": { v: 5475 },
-                    "V2": { v: 0 },
-                    "W2": { v: 5475 },
-                    "X2": { v: 135 },
-                    "Y2": { v: 0 },
-                    "A3": { v: "小駿" },
-                    "B3": { v: "客服" },
-                    "C3": { v: 2000 },
-                    "D3": { v: 0 },
-                    "E3": { v: 800 },
-                    "F3": { v: 0 },
-                    "U3": { v: 2800 },
-                    "W3": { v: 2800 },
-                    "A4": { v: "奶爸" },
-                    "B4": { v: "客服" },
-                    "C4": { v: 2000 },
-                    "U4": { v: 2650 },
-                    "W4": { v: 2650 }
-                };
+                // 使用SheetJS讀取Excel檔案
+                const realWorkbook = XLSX.read(arrayBuffer, {
+                    cellStyles: true,
+                    cellFormulas: true,
+                    cellDates: true,
+                    cellNF: true,
+                    sheetStubs: true
+                });
 
-                // 提成計算
-                mockWorkbook.Sheets["提成計算"] = {
-                    "!ref": "A1:L5",
-                    "A1": { v: "姓名" },
-                    "C1": { v: "客服業績" },
-                    "D1": { v: "客服提成" },
-                    "G1": { v: "自開客業績" },
-                    "H1": { v: "自開客提成" },
-                    "A2": { v: "董卓" },
-                    "C2": { v: 23320 },
-                    "D2": { v: 1364 },
-                    "G2": { v: 28874 },
-                    "H2": { v: 2078 },
-                    "A3": { v: "小駿" },
-                    "C3": { v: 15000 },
-                    "D3": { v: 800 },
-                    "A4": { v: "奶爸" },
-                    "C4": { v: 12000 },
-                    "D4": { v: 650 }
-                };
+                console.log('成功讀取Excel檔案，工作表:', realWorkbook.SheetNames);
 
-                // 業績來源
-                mockWorkbook.Sheets["業績來源"] = {
-                    "!ref": "A1:E10",
-                    "A1": { v: "開發者" },
-                    "B1": { v: "客服" },
-                    "C1": { v: "攻擊手" },
-                    "D1": { v: "描述" },
-                    "E1": { v: "金額" },
-                    "A2": { v: "董卓" },
-                    "B2": { v: "董卓" },
-                    "C2": { v: "" },
-                    "D2": { v: "奶爸導董卓導凌晨：8,617" },
-                    "E2": { v: 8617 },
-                    "A3": { v: "董卓" },
-                    "B3": { v: "董卓" },
-                    "C3": { v: "" },
-                    "D3": { v: "順子導董卓導凌晨：267" },
-                    "E3": { v: 267 },
-                    "A4": { v: "董卓" },
-                    "B4": { v: "董卓" },
-                    "C4": { v: "" },
-                    "D4": { v: "許靈光導董卓導凌晨：14,436" },
-                    "E4": { v: 14436 },
-                    "A5": { v: "董卓" },
-                    "B5": { v: "" },
-                    "C5": { v: "" },
-                    "D5": { v: "董卓導自己：620" },
-                    "E5": { v: 620 },
-                    "A6": { v: "董卓" },
-                    "B6": { v: "" },
-                    "C6": { v: "" },
-                    "D6": { v: "董卓導自己導凌晨：28,254" },
-                    "E6": { v: 28254 }
-                };
-
-                workbook = mockWorkbook;
-                const generator = new SalarySlipGenerator(mockWorkbook);
+                workbook = realWorkbook;
+                const generator = new SalarySlipGenerator(realWorkbook);
                 employees = generator.getAllEmployees();
 
                 updateUI();
 
             } catch (error) {
                 console.error('檔案讀取錯誤:', error);
-                alert('檔案讀取失敗，請確認檔案格式正確');
+                alert('檔案讀取失敗，請確認檔案格式正確\n錯誤詳情: ' + error.message);
             } finally {
                 showLoading(false);
             }
@@ -996,8 +936,8 @@
             if (data.salary.serviceCommission > 0) {
                 salaryStructureHTML += '<div class="salary-item">';
                 salaryStructureHTML += '<div>';
-                salaryStructureHTML += '<span class="salary-label">客服提成6.5%</span>';
-                if (config.showCalculation) {
+                salaryStructureHTML += '<span class="salary-label">客服提成</span>';
+                if (config.showCalculation && data.commission.servicePerformance > 0) {
                     salaryStructureHTML += '<span class="salary-calculation">' + formatNumber(Math.round(data.commission.servicePerformance * 0.9 * 10) / 10) + ' U × 6.5%</span>';
                 }
                 salaryStructureHTML += '</div>';
@@ -1005,16 +945,75 @@
                 salaryStructureHTML += '</div>';
             }
 
+            // 開發提成
+            if (data.salary.developCommission > 0) {
+                salaryStructureHTML += '<div class="salary-item">';
+                salaryStructureHTML += '<div>';
+                salaryStructureHTML += '<span class="salary-label">開發提成</span>';
+                if (config.showCalculation && data.commission.developPerformance > 0) {
+                    salaryStructureHTML += '<span class="salary-calculation">' + formatNumber(data.commission.developPerformance) + ' U × 比例</span>';
+                }
+                salaryStructureHTML += '</div>';
+                salaryStructureHTML += '<span class="salary-value positive">' + formatNumber(data.salary.developCommission) + ' U</span>';
+                salaryStructureHTML += '</div>';
+            }
+
             // 自開客提成
             if (data.salary.selfOpenCommission > 0) {
                 salaryStructureHTML += '<div class="salary-item">';
                 salaryStructureHTML += '<div>';
-                salaryStructureHTML += '<span class="salary-label">自開客提成8%</span>';
-                if (config.showCalculation) {
+                salaryStructureHTML += '<span class="salary-label">自開客提成</span>';
+                if (config.showCalculation && data.commission.selfOpenPerformance > 0) {
                     salaryStructureHTML += '<span class="salary-calculation">' + formatNumber(Math.round(data.commission.selfOpenPerformance * 0.9 * 10) / 10) + ' U × 8%</span>';
                 }
                 salaryStructureHTML += '</div>';
                 salaryStructureHTML += '<span class="salary-value positive">' + formatNumber(data.salary.selfOpenCommission) + ' U</span>';
+                salaryStructureHTML += '</div>';
+            }
+
+            // 攻擊手提成
+            if (data.salary.attackCommission > 0) {
+                salaryStructureHTML += '<div class="salary-item">';
+                salaryStructureHTML += '<div>';
+                salaryStructureHTML += '<span class="salary-label">攻擊手提成</span>';
+                if (config.showCalculation && data.commission.attackPerformance > 0) {
+                    salaryStructureHTML += '<span class="salary-calculation">' + formatNumber(data.commission.attackPerformance) + ' U × 比例</span>';
+                }
+                salaryStructureHTML += '</div>';
+                salaryStructureHTML += '<span class="salary-value positive">' + formatNumber(data.salary.attackCommission) + ' U</span>';
+                salaryStructureHTML += '</div>';
+            }
+
+            // 砍刀提成
+            if (data.salary.knifeCommission > 0) {
+                salaryStructureHTML += '<div class="salary-item">';
+                salaryStructureHTML += '<div>';
+                salaryStructureHTML += '<span class="salary-label">砍刀提成</span>';
+                if (config.showCalculation && data.commission.knifePerformance > 0) {
+                    salaryStructureHTML += '<span class="salary-calculation">' + formatNumber(data.commission.knifePerformance) + ' U × 比例</span>';
+                }
+                salaryStructureHTML += '</div>';
+                salaryStructureHTML += '<span class="salary-value positive">' + formatNumber(data.salary.knifeCommission) + ' U</span>';
+                salaryStructureHTML += '</div>';
+            }
+
+            // 廣告提成
+            if (data.salary.adCommission > 0) {
+                salaryStructureHTML += '<div class="salary-item">';
+                salaryStructureHTML += '<div>';
+                salaryStructureHTML += '<span class="salary-label">廣告提成</span>';
+                salaryStructureHTML += '</div>';
+                salaryStructureHTML += '<span class="salary-value positive">' + formatNumber(data.salary.adCommission) + ' U</span>';
+                salaryStructureHTML += '</div>';
+            }
+
+            // 炒群手提成
+            if (data.salary.groupCommission > 0) {
+                salaryStructureHTML += '<div class="salary-item">';
+                salaryStructureHTML += '<div>';
+                salaryStructureHTML += '<span class="salary-label">炒群手提成</span>';
+                salaryStructureHTML += '</div>';
+                salaryStructureHTML += '<span class="salary-value positive">' + formatNumber(data.salary.groupCommission) + ' U</span>';
                 salaryStructureHTML += '</div>';
             }
 
@@ -1052,11 +1051,7 @@
                 servicePerformanceHTML += '<span style="font-weight: bold;">' + formatNumber(data.commission.servicePerformance) + ' U</span>';
                 servicePerformanceHTML += '</div>';
                 servicePerformanceHTML += '<div class="performance-item">';
-                servicePerformanceHTML += '<span>大區開銷後業績</span>';
-                servicePerformanceHTML += '<span style="font-weight: bold;">' + formatNumber(Math.round(data.commission.servicePerformance * 0.9 * 10) / 10) + ' U (扣除10%)</span>';
-                servicePerformanceHTML += '</div>';
-                servicePerformanceHTML += '<div class="performance-item">';
-                servicePerformanceHTML += '<span>客服提成6.5%</span>';
+                servicePerformanceHTML += '<span>客服提成</span>';
                 servicePerformanceHTML += '<span style="font-weight: bold; color: #10b981;">' + formatNumber(data.commission.serviceCommission) + ' U</span>';
                 servicePerformanceHTML += '</div>';
                 
@@ -1064,11 +1059,36 @@
                     servicePerformanceHTML += '<div class="performance-details">';
                     servicePerformanceHTML += '<p style="font-size: 14px; font-weight: 500; color: #6b7280; margin-bottom: 8px;">來源明細：</p>';
                     data.performanceDetails.service.forEach(function(detail) {
-                        servicePerformanceHTML += '<p>' + detail.description + '</p>';
+                        servicePerformanceHTML += '<p>' + detail.description + ': ' + formatNumber(detail.amount) + ' U</p>';
                     });
                     servicePerformanceHTML += '</div>';
                 }
                 servicePerformanceHTML += '</div>';
+            }
+
+            // 開發業績部分
+            let developPerformanceHTML = '';
+            if (data.commission.developPerformance > 0) {
+                developPerformanceHTML += '<div class="performance-section">';
+                developPerformanceHTML += '<h4 style="font-weight: bold; color: #1f2937; margin-bottom: 12px;">開發業績</h4>';
+                developPerformanceHTML += '<div class="performance-item">';
+                developPerformanceHTML += '<span>開發總業績</span>';
+                developPerformanceHTML += '<span style="font-weight: bold;">' + formatNumber(data.commission.developPerformance) + ' U</span>';
+                developPerformanceHTML += '</div>';
+                developPerformanceHTML += '<div class="performance-item">';
+                developPerformanceHTML += '<span>開發提成</span>';
+                developPerformanceHTML += '<span style="font-weight: bold; color: #10b981;">' + formatNumber(data.commission.developCommission) + ' U</span>';
+                developPerformanceHTML += '</div>';
+                
+                if (config.showPerformanceDetails && data.performanceDetails.develop.length > 0) {
+                    developPerformanceHTML += '<div class="performance-details">';
+                    developPerformanceHTML += '<p style="font-size: 14px; font-weight: 500; color: #6b7280; margin-bottom: 8px;">來源明細：</p>';
+                    data.performanceDetails.develop.forEach(function(detail) {
+                        developPerformanceHTML += '<p>' + detail.description + ': ' + formatNumber(detail.amount) + ' U</p>';
+                    });
+                    developPerformanceHTML += '</div>';
+                }
+                developPerformanceHTML += '</div>';
             }
 
             // 自開客業績部分
@@ -1081,11 +1101,7 @@
                 selfOpenPerformanceHTML += '<span style="font-weight: bold;">' + formatNumber(data.commission.selfOpenPerformance) + ' U</span>';
                 selfOpenPerformanceHTML += '</div>';
                 selfOpenPerformanceHTML += '<div class="performance-item">';
-                selfOpenPerformanceHTML += '<span>大區開銷後業績</span>';
-                selfOpenPerformanceHTML += '<span style="font-weight: bold;">' + formatNumber(Math.round(data.commission.selfOpenPerformance * 0.9 * 10) / 10) + ' U (扣除10%)</span>';
-                selfOpenPerformanceHTML += '</div>';
-                selfOpenPerformanceHTML += '<div class="performance-item">';
-                selfOpenPerformanceHTML += '<span>自開客提成8%</span>';
+                selfOpenPerformanceHTML += '<span>自開客提成</span>';
                 selfOpenPerformanceHTML += '<span style="font-weight: bold; color: #10b981;">' + formatNumber(data.commission.selfOpenCommission) + ' U</span>';
                 selfOpenPerformanceHTML += '</div>';
                 
@@ -1093,11 +1109,61 @@
                     selfOpenPerformanceHTML += '<div class="performance-details">';
                     selfOpenPerformanceHTML += '<p style="font-size: 14px; font-weight: 500; color: #6b7280; margin-bottom: 8px;">來源明細：</p>';
                     data.performanceDetails.selfOpen.forEach(function(detail) {
-                        selfOpenPerformanceHTML += '<p>' + detail.description + '</p>';
+                        selfOpenPerformanceHTML += '<p>' + detail.description + ': ' + formatNumber(detail.amount) + ' U</p>';
                     });
                     selfOpenPerformanceHTML += '</div>';
                 }
                 selfOpenPerformanceHTML += '</div>';
+            }
+
+            // 攻擊手業績部分
+            let attackPerformanceHTML = '';
+            if (data.commission.attackPerformance > 0) {
+                attackPerformanceHTML += '<div class="performance-section">';
+                attackPerformanceHTML += '<h4 style="font-weight: bold; color: #1f2937; margin-bottom: 12px;">攻擊手業績</h4>';
+                attackPerformanceHTML += '<div class="performance-item">';
+                attackPerformanceHTML += '<span>攻擊手總業績</span>';
+                attackPerformanceHTML += '<span style="font-weight: bold;">' + formatNumber(data.commission.attackPerformance) + ' U</span>';
+                attackPerformanceHTML += '</div>';
+                attackPerformanceHTML += '<div class="performance-item">';
+                attackPerformanceHTML += '<span>攻擊手提成</span>';
+                attackPerformanceHTML += '<span style="font-weight: bold; color: #10b981;">' + formatNumber(data.commission.attackCommission) + ' U</span>';
+                attackPerformanceHTML += '</div>';
+                
+                if (config.showPerformanceDetails && data.performanceDetails.attack.length > 0) {
+                    attackPerformanceHTML += '<div class="performance-details">';
+                    attackPerformanceHTML += '<p style="font-size: 14px; font-weight: 500; color: #6b7280; margin-bottom: 8px;">來源明細：</p>';
+                    data.performanceDetails.attack.forEach(function(detail) {
+                        attackPerformanceHTML += '<p>' + detail.description + ': ' + formatNumber(detail.amount) + ' U</p>';
+                    });
+                    attackPerformanceHTML += '</div>';
+                }
+                attackPerformanceHTML += '</div>';
+            }
+
+            // 砍刀業績部分
+            let knifePerformanceHTML = '';
+            if (data.commission.knifePerformance > 0) {
+                knifePerformanceHTML += '<div class="performance-section">';
+                knifePerformanceHTML += '<h4 style="font-weight: bold; color: #1f2937; margin-bottom: 12px;">砍刀業績</h4>';
+                knifePerformanceHTML += '<div class="performance-item">';
+                knifePerformanceHTML += '<span>砍刀總業績</span>';
+                knifePerformanceHTML += '<span style="font-weight: bold;">' + formatNumber(data.commission.knifePerformance) + ' U</span>';
+                knifePerformanceHTML += '</div>';
+                knifePerformanceHTML += '<div class="performance-item">';
+                knifePerformanceHTML += '<span>砍刀提成</span>';
+                knifePerformanceHTML += '<span style="font-weight: bold; color: #10b981;">' + formatNumber(data.commission.knifeCommission) + ' U</span>';
+                knifePerformanceHTML += '</div>';
+                
+                if (config.showPerformanceDetails && data.performanceDetails.knife.length > 0) {
+                    knifePerformanceHTML += '<div class="performance-details">';
+                    knifePerformanceHTML += '<p style="font-size: 14px; font-weight: 500; color: #6b7280; margin-bottom: 8px;">來源明細：</p>';
+                    data.performanceDetails.knife.forEach(function(detail) {
+                        knifePerformanceHTML += '<p>' + detail.description + ': ' + formatNumber(detail.amount) + ' U</p>';
+                    });
+                    knifePerformanceHTML += '</div>';
+                }
+                knifePerformanceHTML += '</div>';
             }
 
             const previewContainer = document.getElementById('salarySlipPreview');
@@ -1142,7 +1208,10 @@
                                 '<h2>📊 業績表現</h2>' +
                             '</div>' +
                             servicePerformanceHTML +
+                            developPerformanceHTML +
                             selfOpenPerformanceHTML +
+                            attackPerformanceHTML +
+                            knifePerformanceHTML +
                         '</div>' +
                     '</div>' +
                 '</div>';
@@ -1155,17 +1224,44 @@
         function downloadSalarySlip() {
             if (!selectedEmployeeData) return;
 
-            const content = `
+            let content = `
 薪資明細單
 ================
 員工: ${selectedEmployeeData.salary.name}
 職位: ${selectedEmployeeData.salary.position}
 ================
-底薪: ${formatNumber(selectedEmployeeData.salary.baseSalary)} U
-客服提成: ${formatNumber(selectedEmployeeData.salary.serviceCommission)} U
-自開客提成: ${formatNumber(selectedEmployeeData.salary.selfOpenCommission)} U
-車隊津貼: ${formatNumber(selectedEmployeeData.salary.carAllowance)} U
-遲到扣款: ${selectedEmployeeData.salary.lateDeduction} U
+底薪: ${formatNumber(selectedEmployeeData.salary.baseSalary)} U`;
+
+            // 動態添加各種提成
+            if (selectedEmployeeData.salary.serviceCommission > 0) {
+                content += `\n客服提成: ${formatNumber(selectedEmployeeData.salary.serviceCommission)} U`;
+            }
+            if (selectedEmployeeData.salary.developCommission > 0) {
+                content += `\n開發提成: ${formatNumber(selectedEmployeeData.salary.developCommission)} U`;
+            }
+            if (selectedEmployeeData.salary.selfOpenCommission > 0) {
+                content += `\n自開客提成: ${formatNumber(selectedEmployeeData.salary.selfOpenCommission)} U`;
+            }
+            if (selectedEmployeeData.salary.attackCommission > 0) {
+                content += `\n攻擊手提成: ${formatNumber(selectedEmployeeData.salary.attackCommission)} U`;
+            }
+            if (selectedEmployeeData.salary.knifeCommission > 0) {
+                content += `\n砍刀提成: ${formatNumber(selectedEmployeeData.salary.knifeCommission)} U`;
+            }
+            if (selectedEmployeeData.salary.adCommission > 0) {
+                content += `\n廣告提成: ${formatNumber(selectedEmployeeData.salary.adCommission)} U`;
+            }
+            if (selectedEmployeeData.salary.groupCommission > 0) {
+                content += `\n炒群手提成: ${formatNumber(selectedEmployeeData.salary.groupCommission)} U`;
+            }
+            if (selectedEmployeeData.salary.carAllowance > 0) {
+                content += `\n車隊津貼: ${formatNumber(selectedEmployeeData.salary.carAllowance)} U`;
+            }
+            if (selectedEmployeeData.salary.lateDeduction < 0) {
+                content += `\n遲到扣款: ${selectedEmployeeData.salary.lateDeduction} U`;
+            }
+
+            content += `
 ================
 本月總薪: ${formatNumber(selectedEmployeeData.salary.totalSalary)} U
 預支: ${formatNumber(selectedEmployeeData.salary.advance)} U
